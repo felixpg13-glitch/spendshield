@@ -1,0 +1,82 @@
+# 💰 SpendGuard — AI Agent 付款安全层
+
+> **AI 替你花钱之前，先过 SpendGuard 这关。**
+
+让 AI Agent 下单、转账、调付费 API 之前，自动过四道闸门：
+**干跑预览 → 预算上限 → 人工确认 → 全量审计。**
+
+## 🩸 为什么会有这个项目（真实事故）
+
+2026 年 8 月 9 日，我的自动化系统测试下单。
+
+我传了 `dry: true`，以为只是试算价格。但服务器只认 `?dry=1` —— **4 单 99 元真实出码扣款，当天全部打水漂。**
+
+这不是我一个人的坑。AI Agent 时代正在到来：Agent 替你订餐、替你充值、替你调付费 API——**当 AI 开始花真钱，谁给它上闸门？**
+
+我把我踩过的坑，做成了一个库。
+
+## ✨ 四道闸门
+
+| 闸门 | 默认 | 作用 |
+|------|------|------|
+| 🧪 **dry_run** 干跑 | ✅ 开 | 只预览不执行——`dry` 参数失效也无所谓，库层面兜底 |
+| 💰 **budget** 预算 | 不限 | 总预算超支直接拒绝，绝不超花 |
+| 🚧 **max_amount** 单次上限 | 不限 | 单笔超限拦截（防"转 9999 给陌生人"） |
+| 🙋 **approval** 人工确认 | 关 | 花钱前必须人点头（console / 回调） |
+| 📜 **audit** 审计 | ✅ 开 | 每次尝试全留痕，导出 JSON 对账 |
+
+## 🚀 快速开始
+
+```bash
+pip install spendguard   # 或直接 clone 用
+```
+
+```python
+from spendguard import SpendGuard
+
+guard = SpendGuard(budget=200, dry_run=True)   # 默认干跑
+
+@guard.protect("下单")
+def place_order(amount, to):
+    return call_real_api(amount, to)            # 真实下单逻辑
+
+# 干跑模式: 报错提示, 绝不真花
+place_order(amount=99, to="麦当劳")
+# => [SpendGuard] dry_run: 下单 ¥99.0 -> 麦当劳 (未执行)
+# => DryRunBlocked: 关掉 dry_run 才会真花
+
+# 确认无误后放行, 预算闸门兜底
+guard.dry_run = False
+for i in range(4):
+    place_order(amount=99, to="麦当劳")          # 第3单被 BudgetExceeded 拦住
+```
+
+## 🎯 谁需要它
+
+- **AI Agent 框架用户**：给你的 Agent 工具加装饰器，一行接入
+- **自动化系统运维**：批量任务/定时下单，防误操作真扣款
+- **MCP / Function Call 开发者**：LLM 生成的工具调用，过闸门再执行
+- **所有被"测试单变真单"坑过的人** 🩸
+
+## 🗺 Roadmap
+
+- [x] v0.1 四道闸门 + 审计 + 装饰器接入
+- [ ] 收款方黑名单/白名单（陌生收款方强制确认）
+- [ ] 频率限制（同一收款方短时间 N 次）
+- [ ] MCP server 版（Agent 工具调用直接过闸）
+- [ ] 远程审批（企业微信/Telegram 确认）
+- [ ] 多策略插件（风控规则引擎）
+
+## 🧪 测试
+
+```bash
+python3 tests/test_guard.py   # 6 个测试全过
+```
+
+## 📄 License
+
+MIT — 拿去用。愿 AI 时代，没人再被"测试单"坑第二次。
+
+---
+
+**⭐ 如果这个项目对你有用，点个 star，让更多被坑过的人看到。**
