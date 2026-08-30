@@ -1,0 +1,15 @@
+# 场景模板: 转账(高风险, 从严)
+# 用法: SpendGuard(policy="templates/transfer.yaml")
+dry_run: true
+budget: 1000
+max_amount: 500
+rate_limit:
+  window_s: 600
+  max_calls: 2
+blacklist:
+  - "0x"
+  - 未知
+  - 投资
+  - 保证金
+whitelist: []
+approval: console

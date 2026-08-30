@@ -1,0 +1,11 @@
+# 场景模板: AI 调付费 API(LLM/数据接口)
+# 用法: SpendGuard(policy="templates/api_calls.yaml")
+dry_run: true
+budget: 100
+max_amount: 20
+rate_limit:
+  window_s: 60
+  max_calls: 30
+blacklist: []
+whitelist: []
+approval: null

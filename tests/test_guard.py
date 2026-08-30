@@ -159,3 +159,72 @@ def test_policy_file():
     assert "麦当劳" in guard.whitelist
     assert guard.rate_limit.get("max_calls") == 3
     print("✅ policy: YAML 策略加载成功")
+
+
+def test_webhook_approval():
+    """Webhook 远程审批(起本地 mock 审核服务)"""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    received = {}
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+            import json as j
+            received.update(j.loads(body))
+            resp = j.dumps({"approved": True}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(resp)))
+            self.end_headers()
+            self.wfile.write(resp)
+        def log_message(self, *a): pass
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    port = srv.server_address[1]
+
+    guard = SpendGuard(dry_run=False, approval="webhook",
+                       webhook_url=f"http://127.0.0.1:{port}/approve")
+    @guard.protect("下单")
+    def place_order(amount, to):
+        return "OK"
+    place_order(amount=50, to="商家A")
+    assert guard.spent == 50.0
+    assert received.get("action") == "下单"
+    assert received.get("to") == "商家A"
+    srv.shutdown()
+    print("✅ webhook: 远程审批放行 + 审核服务收到请求")
+
+
+def test_webhook_approval_deny():
+    """Webhook 拒绝时不放行"""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    import json as j
+
+    class H(BaseHTTPRequestHandler):
+        def do_POST(self):
+            resp = j.dumps({"approved": False}).encode()
+            self.send_response(200)
+            self.send_header("Content-Length", str(len(resp)))
+            self.end_headers()
+            self.wfile.write(resp)
+        def log_message(self, *a): pass
+
+    srv = ThreadingHTTPServer(("127.0.0.1", 0), H)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    port = srv.server_address[1]
+
+    guard = SpendGuard(dry_run=False, approval="webhook",
+                       webhook_url=f"http://127.0.0.1:{port}/approve")
+    @guard.protect("转账")
+    def transfer(amount, to):
+        return "OK"
+    try:
+        transfer(amount=999, to="陌生人")
+        assert False, "webhook 拒绝应拦截"
+    except NeedsApproval:
+        pass
+    assert guard.spent == 0
+    srv.shutdown()
+    print("✅ webhook: 拒绝时拦截 + 不扣款")

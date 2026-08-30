@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpendGuard — AI Agent 付款安全层</title>
+<style>
+:root{--bg:#070a10;--panel:#0e141b;--border:#1c2530;--text:#e6e8ee;--muted:#8b95a5;--violet:#a78bfa;--cyan:#67e8f9;--red:#f85149}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background:
+  radial-gradient(900px 500px at 15% -5%,rgba(167,139,250,.13),transparent 60%),
+  radial-gradient(700px 400px at 85% 10%,rgba(103,232,249,.07),transparent 60%),
+  linear-gradient(rgba(167,139,250,.03) 1px,transparent 1px),
+  linear-gradient(90deg,rgba(167,139,250,.03) 1px,transparent 1px);
+  background-size:auto,auto,44px 44px,44px 44px;pointer-events:none;z-index:0}
+.wrap{max-width:1000px;margin:0 auto;padding:0 24px;position:relative;z-index:1}
+nav{display:flex;align-items:center;justify-content:space-between;padding:22px 0}
+.logo{display:flex;align-items:center;gap:10px;font-size:17px;font-weight:800}
+.logo .mark{width:34px;height:34px;border-radius:9px;background:linear-gradient(135deg,#7c5cf0,#a78bfa);display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 4px 16px rgba(167,139,250,.35)}
+.logo span{color:var(--violet)}
+nav .links a{color:var(--muted);text-decoration:none;font-size:14px;margin-left:22px;transition:color .2s}
+nav .links a:hover{color:var(--text)}
+.hero{text-align:center;padding:80px 0 40px}
+.badge{display:inline-block;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.25);color:var(--violet);font-size:12px;padding:5px 14px;border-radius:20px;margin-bottom:22px;letter-spacing:.5px}
+.hero h1{font-size:46px;font-weight:800;line-height:1.2;background:linear-gradient(180deg,#fff 30%,#c4b5fd);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.hero h1 em{font-style:normal;color:var(--violet);-webkit-text-fill-color:var(--violet)}
+.hero .sub{font-size:17px;color:var(--muted);max-width:640px;margin:20px auto 32px}
+.hero .sub b{color:var(--text)}
+.cta{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:13px 30px;border-radius:11px;font-size:15px;font-weight:600;text-decoration:none;transition:transform .15s,box-shadow .2s}
+.btn.primary{background:linear-gradient(135deg,#7c5cf0,#a78bfa);color:#fff;box-shadow:0 6px 24px rgba(167,139,250,.35)}
+.btn.primary:hover{transform:translateY(-2px);box-shadow:0 10px 32px rgba(167,139,250,.5)}
+.btn.ghost{background:rgba(255,255,255,.04);border:1px solid var(--border);color:var(--text)}
+.btn.ghost:hover{transform:translateY(-2px);border-color:#3d4656}
+.code-shell{margin:48px auto 0;max-width:680px;position:relative}
+.code-shell::before{content:'';position:absolute;inset:-30px;background:radial-gradient(400px 180px at 50% 0%,rgba(167,139,250,.15),transparent 70%);z-index:-1}
+.window{background:var(--panel);border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+.window .bar{display:flex;align-items:center;gap:7px;padding:11px 16px;background:#0b1017;border-bottom:1px solid var(--border)}
+.window .bar i{width:11px;height:11px;border-radius:50%;display:inline-block}
+.window .bar i:nth-child(1){background:#ff5f57}.window .bar i:nth-child(2){background:#febc2e}.window .bar i:nth-child(3){background:#28c840}
+.window .bar .url{margin-left:12px;font-size:11px;color:var(--muted);background:#131a22;padding:3px 14px;border-radius:6px;flex:1;text-align:center}
+.window pre{padding:20px 24px;font-family:Menlo,Consolas,monospace;font-size:13px;color:#aeb9c9;line-height:1.9;overflow-x:auto;text-align:left}
+.window .ok{color:var(--violet)}
+.window .err{color:var(--red)}
+.window .cmt{color:#5c6a7d}
+/* 为什么需要 */
+.why{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:30px;margin:50px 0;position:relative}
+.why h3{font-size:20px;margin-bottom:14px}
+.why p{font-size:14px;color:var(--muted);margin-bottom:10px}
+.why b{color:var(--text)}
+.why .hl{color:var(--violet)}
+.why .rows{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px}
+.why .row{background:#0b1017;border:1px solid var(--border);border-radius:10px;padding:14px;font-size:13px}
+.why .row b{color:var(--cyan);display:block;margin-bottom:4px}
+/* 闸门 */
+.gates{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;padding:40px 0}
+.gate{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:24px;position:relative;overflow:hidden;transition:transform .2s,border-color .2s}
+.gate::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--violet),transparent);opacity:0;transition:opacity .3s}
+.gate:hover{transform:translateY(-3px);border-color:#2e3a4d}
+.gate:hover::before{opacity:1}
+.gate .icon{font-size:26px;margin-bottom:12px}
+.gate h3{font-size:16px;margin-bottom:8px}
+.gate p{font-size:13px;color:var(--muted)}
+.gate .tag{display:inline-block;font-size:11px;color:var(--violet);border:1px solid rgba(167,139,250,.3);padding:2px 10px;border-radius:12px;margin-top:10px}
+.sec-head{text-align:center;margin:60px 0 36px}
+.sec-head h2{font-size:28px;font-weight:800}
+.sec-head p{color:var(--muted);font-size:14px;margin-top:10px}
+.quick{background:#0a0f17;border:1px solid var(--border);border-radius:12px;padding:22px 24px;margin:0 auto;max-width:660px;font-family:Menlo,Consolas,monospace;font-size:13px;color:#aeb9c9;overflow-x:auto;line-height:1.9}
+.quick .cmt{color:#5c6a7d}
+.quick b{color:#c4b5fd;font-weight:600}
+.cta-final{text-align:center;padding:80px 0 40px}
+.cta-final h2{font-size:30px;font-weight:800;margin-bottom:14px}
+.cta-final p{color:var(--muted);margin-bottom:30px}
+footer{text-align:center;padding:30px 0;color:#5c6a7d;font-size:12px;border-top:1px solid var(--border);margin-top:40px}
+@media(max-width:640px){.hero h1{font-size:32px}.gates{grid-template-columns:1fr}.why .rows{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav>
+  <div class="logo"><div class="mark">💰</div>SpendGuard<span> · AI 付款安全层</span></div>
+  <div class="links"><a href="#why">为什么</a><a href="#gates">闸门</a><a href="#quick">快速开始</a><a href="https://github.com/felixpg13-glitch/spendguard">GitHub</a></div>
+</nav>
+
+<div class="hero">
+  <div class="badge">🛡 AI Agent 付款护栏 · 开源 · Python + MCP</div>
+  <h1>AI 开始花真钱了，<br><em>谁给它上闸门？</em></h1>
+  <p class="sub">AI Agent 正在获得花钱的能力——下单、转账、调付费 API。<br>SpendGuard 在<b>「钱该不该动」</b>和<b>「钱怎么动」</b>之间，加一道确定性护栏。</p>
+  <div class="cta">
+    <a class="btn primary" href="https://github.com/felixpg13-glitch/spendguard">⭐ GitHub 开源</a>
+    <a class="btn ghost" href="#quick">🚀 快速开始</a>
+  </div>
+  <div class="code-shell"><div class="window">
+    <div class="bar"><i></i><i></i><i></i><span class="url">python -m spendguard.mcp_server</span></div>
+<pre><span class="cmt"># Agent 想下单，先过 SpendGuard：</span>
+<span class="err">🧪 dry_run: 下单 ¥99.0 -> 麦当劳 (未执行)</span>
+<span class="err">🧪 dry_run: 下单 ¥99.0 -> 麦当劳 (未执行)</span>
+<span class="err">🚫 黑名单: 转账 ¥9999.0 -> 未知供应商 (拒绝)</span>
+<span class="err">⏱ 频率: 下单 -> 麦当劳 60s内超3次 (拦截)</span>
+<span class="ok">✅ 预算 ¥200 内 2 笔已放行 · 全部留痕审计</span></pre>
+  </div></div>
+</div>
+
+<div class="why" id="why">
+  <h3>为什么 AI 需要付款护栏</h3>
+  <p>Agent 开始持有「信用卡」——Google <b class="hl">AP2</b>（Agent Payments Protocol）、Coinbase <b class="hl">x402</b> 正在让 agent 自主交易成为标准。</p>
+  <p>但安全工具缺失：要么闭源、要么绑死单一支付通道、要么根本不存在。</p>
+  <p><b>真正难的不是「怎么移动钱」，是「钱该不该动」。</b>——这个决定，应该由确定性的代码做，而不是 AI 的意见。</p>
+  <div class="rows">
+    <div class="row"><b>⚡ 标准成形</b>AP2 / x402 让 agent 自主交易成为确定趋势</div>
+    <div class="row"><b>🕳 工具真空</b>Python 生态没有像样的支付护栏</div>
+    <div class="row"><b>🚨 结构性风险</b>Agent 读取不可信内容，可能被诱导花钱</div>
+    <div class="row"><b>🎯 确定性决策</b>规则由代码执行，Agent 永远无法绕过</div>
+  </div>
+</div>
+
+<div class="sec-head" id="gates"><h2>四道闸门</h2><p>每个花钱动作，过四关才能执行</p></div>
+<div class="gates">
+  <div class="gate"><div class="icon">🧪</div><h3>dry_run 干跑</h3><p>只预览不执行——参数失效也无所谓，库层面兜底。</p><span class="tag">默认开启</span></div>
+  <div class="gate"><div class="icon">💰</div><h3>budget 预算</h3><p>总预算超支直接拒绝，绝不超花一分。</p><span class="tag">0 = 不限</span></div>
+  <div class="gate"><div class="icon">🚧</div><h3>单次上限</h3><p>单笔超限拦截——防「转 9999 给陌生人」。</p><span class="tag">防大额</span></div>
+  <div class="gate"><div class="icon">🙋</div><h3>人工确认</h3><p>花钱前必须人点头（console / 回调 / 白名单跳过）。</p><span class="tag">可配置</span></div>
+  <div class="gate"><div class="icon">🚫</div><h3>黑名单/白名单</h3><p>黑名单收款方直接拒绝，白名单信任方跳过确认。</p><span class="tag">v0.2 新增</span></div>
+  <div class="gate"><div class="icon">⏱</div><h3>频率限制</h3><p>同一收款方 60 秒内最多 N 次——防轰炸式扣款。</p><span class="tag">v0.2 新增</span></div>
+  <div class="gate"><div class="icon">📜</div><h3>策略即代码</h3><p>YAML 声明式规则，预算/名单/频率全在配置文件。</p><span class="tag">v0.2 新增</span></div>
+  <div class="gate"><div class="icon">🤖</div><h3>MCP Server</h3><p>Claude Code / OpenClaw 直接调工具过闸门。</p><span class="tag">v0.2 新增</span></div>
+</div>
+
+<div class="sec-head" id="quick"><h2>快速开始</h2><p>三行代码，给你的 Agent 上闸门</p></div>
+<div class="quick">
+<span class="cmt"># 1. 安装</span><br>
+pip install spendguard<br><br>
+<span class="cmt"># 2. 包住你的花钱函数</span><br>
+from spendguard import SpendGuard<br>
+guard = SpendGuard(<b>budget=200</b>, <b>policy="spendguard.yaml"</b>)<br><br>
+@guard.protect("下单")<br>
+def place_order(amount, to): <span class="cmt"># 真实下单逻辑</span><br>
+&nbsp;&nbsp;&nbsp;&nbsp;return call_api(amount, to)<br><br>
+<span class="cmt"># 3. 干跑模式：报错提示，绝不真花</span><br>
+place_order(amount=99, to="麦当劳") <span class="cmt"># => DryRunBlocked</span>
+</div>
+
+<div class="cta-final">
+  <h2>当 AI 开始花真钱，<br>护栏不该缺席</h2>
+  <p>给个 ⭐，让 AI 支付时代的安全多一分确定性</p>
+  <div class="cta"><a class="btn primary" href="https://github.com/felixpg13-glitch/spendguard">⭐ Star on GitHub</a></div>
+</div>
+</div>
+<footer>SpendGuard · MIT License · 2026 · Agent Payment Safety Layer</footer>
+</body>
+</html>

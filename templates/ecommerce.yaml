@@ -1,0 +1,17 @@
+# 场景模板: 电商下单
+# 用法: SpendGuard(policy="templates/ecommerce.yaml")
+dry_run: true
+budget: 500
+max_amount: 200
+rate_limit:
+  window_s: 300
+  max_calls: 5
+blacklist:
+  - 未知供应商
+  - 测试收款
+whitelist:
+  - 官方旗舰店
+  - 京东自营
+  - 天猫
+approval: webhook
+webhook_url: "https://your-approval-service.example/approve"

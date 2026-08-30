@@ -68,6 +68,9 @@ class SpendGuard:
         whitelist: Optional[list] = None,      # 收款方白名单: 跳过人工确认
         rate_limit: Optional[dict] = None,     # {"window_s": 60, "max_calls": 3} 频率限制
         policy: Optional[str] = None,          # 策略文件路径(spendguard.yaml)
+        tg_token: str = "",                    # 远程审批: TG bot token
+        tg_chat: str = "",                     # 远程审批: TG chat id
+        webhook_url: str = "",                 # 远程审批: Webhook URL
     ):
         self.budget = budget
         self.dry_run = dry_run
@@ -77,6 +80,10 @@ class SpendGuard:
         self.blacklist = [str(x).lower() for x in (blacklist or [])]
         self.whitelist = [str(x).lower() for x in (whitelist or [])]
         self.rate_limit = rate_limit or {}
+        self.tg_token = tg_token
+        self.tg_chat = tg_chat
+        self.webhook_url = webhook_url
+        self._tg_offset = 0
         self.default_max_amount = 0.0
         self._rate_hits: list[tuple] = []      # (ts, to)
         self._spent = 0.0
@@ -168,7 +175,58 @@ class SpendGuard:
                 return ans in ("y", "yes")
             except EOFError:
                 return False
+        if self.approval == "tg":
+            return self._ask_tg(action, amount, to)
+        if self.approval == "webhook":
+            return self._ask_webhook(action, amount, to)
         return False  # 未知模式 = 拒绝(安全默认)
+
+    def _ask_tg(self, action: str, amount: float, to: str, timeout_s: int = 60) -> bool:
+        """TG 远程审批: 发消息等回复 y/n"""
+        import urllib.request
+        if not self.tg_token or not self.tg_chat:
+            return False
+        try:
+            text = f"⚠️  SpendGuard 审批\n{action} ¥{amount:.2f} -> {to}\n回复 y 确认 / n 拒绝"
+            url = f"https://api.telegram.org/bot{self.tg_token}/sendMessage"
+            body = json.dumps({"chat_id": self.tg_chat, "text": text}).encode()
+            req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=10).read()
+            # 轮询等回复
+            deadline = time.time() + timeout_s
+            while time.time() < deadline:
+                up_url = f"https://api.telegram.org/bot{self.tg_token}/getUpdates?timeout=10&offset={self._tg_offset}"
+                try:
+                    with urllib.request.urlopen(up_url, timeout=15) as r:
+                        updates = json.loads(r.read()).get("result", [])
+                except Exception:
+                    updates = []
+                for u in updates:
+                    self._tg_offset = u["update_id"] + 1
+                    msg_text = ((u.get("message") or {}).get("text") or "").strip().lower()
+                    if msg_text in ("y", "yes", "确认", "同意"):
+                        return True
+                    if msg_text in ("n", "no", "拒绝", "取消"):
+                        return False
+                time.sleep(1)
+            return False
+        except Exception:
+            return False
+
+    def _ask_webhook(self, action: str, amount: float, to: str, timeout_s: int = 15) -> bool:
+        """Webhook 远程审批: POST 到审核服务, 等 {approved: bool}"""
+        import urllib.request
+        if not self.webhook_url:
+            return False
+        try:
+            body = json.dumps({"action": action, "amount": amount, "to": to}).encode()
+            req = urllib.request.Request(self.webhook_url, data=body,
+                                         headers={"Content-Type": "application/json"})
+            with urllib.request.urlopen(req, timeout=timeout_s) as r:
+                resp = json.loads(r.read().decode("utf-8", "replace"))
+            return bool(resp.get("approved"))
+        except Exception:
+            return False
 
     def protect(self, action: str, max_amount: float = 0.0):
         """
@@ -236,6 +294,11 @@ class SpendGuard:
             self.whitelist = [str(x).lower() for x in cfg["whitelist"]]
         if cfg.get("rate_limit"):
             self.rate_limit = cfg["rate_limit"]
+        if cfg.get("tg"):
+            self.tg_token = cfg["tg"].get("token", self.tg_token)
+            self.tg_chat = cfg["tg"].get("chat", self.tg_chat)
+        if cfg.get("webhook_url"):
+            self.webhook_url = cfg["webhook_url"]
         return self
 
     def _authorize(self, action: str, amount: float, to: str) -> bool:
