@@ -80,3 +80,25 @@ MIT — 拿去用。愿 AI 时代，没人再被"测试单"坑第二次。
 ---
 
 **⭐ 如果这个项目对你有用，点个 star，让更多被坑过的人看到。**
+
+## 🤖 MCP Server（AI Agent 直接调用）
+
+让 Claude Code / OpenClaw 等 MCP 兼容 agent 直接通过工具调用过闸门：
+
+```bash
+# 启动(stdio 模式, agent 配置里指向它)
+python -m spendguard.mcp_server --policy spendguard.yaml
+# 或安装后: spendguard-mcp --policy spendguard.yaml
+```
+
+**工具**：
+- `spend_protect(action, amount, to)` — 保护一次花钱操作（走全部闸门）
+- `spend_status()` — 预算/已花/拦截统计
+- `spend_audit(limit)` — 最近审计记录
+- `spend_reset()` — 重置会话已花
+
+```json
+// agent 调用示例
+{"name": "spend_protect", "arguments": {"action": "下单", "amount": 99, "to": "麦当劳"}}
+// => {"ok": false, "reason": "[干跑] 下单 ¥99.0 -> 麦当劳 (未执行...)", "spent": 0.0}
+```

@@ -238,6 +238,18 @@ class SpendGuard:
             self.rate_limit = cfg["rate_limit"]
         return self
 
+    def _authorize(self, action: str, amount: float, to: str) -> bool:
+        """MCP/程序化调用入口: 走全部闸门, 通过返回 True, 被拦抛异常"""
+        if self.default_max_amount > 0 and amount > self.default_max_amount:
+            rec = self._record(action=action, amount=amount, to=to,
+                               decision="blocked_budget",
+                               reason=f"单次 ¥{amount:.2f} > 上限 ¥{self.default_max_amount:.2f}",
+                               spent_after=self._spent)
+            self.log(rec)
+            raise BudgetExceeded(f"[单次上限] {action} ¥{amount} 超过 ¥{self.default_max_amount}")
+        self._check(action, amount, to)
+        return True
+
     def summary(self) -> dict:
         return {
             "dry_run": self.dry_run,
