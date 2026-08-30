@@ -64,14 +64,25 @@ class SpendGuard:
         approval: Optional[Any] = None,
         on_block: Optional[Callable[[AuditRecord], None]] = None,
         log: Optional[Callable[[AuditRecord], None]] = None,
+        blacklist: Optional[list] = None,      # 收款方黑名单: 直接拒绝
+        whitelist: Optional[list] = None,      # 收款方白名单: 跳过人工确认
+        rate_limit: Optional[dict] = None,     # {"window_s": 60, "max_calls": 3} 频率限制
+        policy: Optional[str] = None,          # 策略文件路径(spendguard.yaml)
     ):
         self.budget = budget
         self.dry_run = dry_run
         self.approval = approval
         self.on_block = on_block
         self.log = log or (lambda rec: print(f"[SpendGuard] {rec.decision}: {rec.action} ¥{rec.amount} -> {rec.to}"))
+        self.blacklist = [str(x).lower() for x in (blacklist or [])]
+        self.whitelist = [str(x).lower() for x in (whitelist or [])]
+        self.rate_limit = rate_limit or {}
+        self.default_max_amount = 0.0
+        self._rate_hits: list[tuple] = []      # (ts, to)
         self._spent = 0.0
         self.records: list[AuditRecord] = []
+        if policy:
+            self.load_policy(policy)
 
     @property
     def spent(self) -> float:
@@ -92,6 +103,34 @@ class SpendGuard:
             self.log(rec)
             raise DryRunBlocked(f"[干跑] {action} ¥{amount} -> {to} (未执行, 关掉 dry_run 才会真花)")
 
+        # 1.5 黑名单: 直接拒绝
+        to_l = str(to).lower()
+        if any(b in to_l for b in self.blacklist):
+            rec = self._record(action=action, amount=amount, to=to,
+                               decision="blocked_blacklist", reason=f"收款方在黑名单: {to}",
+                               spent_after=self._spent)
+            self.log(rec)
+            if self.on_block:
+                self.on_block(rec)
+            raise BudgetExceeded(f"[黑名单] {action} ¥{amount} -> {to} 被拒绝(黑名单收款方)")
+
+        # 1.6 频率限制: 同一收款方 window 内 max_calls 次
+        if self.rate_limit:
+            now = time.time()
+            window = self.rate_limit.get("window_s", 60)
+            max_calls = self.rate_limit.get("max_calls", 3)
+            self._rate_hits = [(t, r) for t, r in self._rate_hits if now - t < window]
+            hits = sum(1 for _, r in self._rate_hits if r == to_l)
+            if hits >= max_calls:
+                rec = self._record(action=action, amount=amount, to=to,
+                                   decision="blocked_rate", reason=f"收款方 {to} {window}s 内超过 {max_calls} 次",
+                                   spent_after=self._spent)
+                self.log(rec)
+                if self.on_block:
+                    self.on_block(rec)
+                raise BudgetExceeded(f"[频率] {action} ¥{amount} -> {to} 触发频率限制({window}s/{max_calls}次)")
+            self._rate_hits.append((now, to_l))
+
         # 2. 预算
         if self.budget > 0 and self._spent + amount > self.budget:
             rec = self._record(action=action, amount=amount, to=to,
@@ -103,8 +142,11 @@ class SpendGuard:
                 self.on_block(rec)
             raise BudgetExceeded(f"[预算] {action} ¥{amount} 超支: 已花 ¥{self._spent:.2f}, 预算 ¥{self.budget:.2f}")
 
+        # 2.5 白名单: 跳过人工确认
+        if any(w in to_l for w in self.whitelist):
+            pass
         # 3. 人工确认
-        if self.approval is not None:
+        elif self.approval is not None:
             ok = self._ask(action, amount, to)
             if not ok:
                 rec = self._record(action=action, amount=amount, to=to,
@@ -177,6 +219,24 @@ class SpendGuard:
                 if nm in kwargs:
                     return float(kwargs[nm])
         return 0.0
+
+    def load_policy(self, path: str):
+        """从 YAML 策略文件加载配置(策略即代码)"""
+        import yaml
+        with open(path, encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        for k in ("budget", "dry_run", "approval"):
+            if k in cfg:
+                setattr(self, k, cfg[k])
+        if "max_amount" in cfg:
+            self.default_max_amount = cfg["max_amount"]
+        if cfg.get("blacklist"):
+            self.blacklist = [str(x).lower() for x in cfg["blacklist"]]
+        if cfg.get("whitelist"):
+            self.whitelist = [str(x).lower() for x in cfg["whitelist"]]
+        if cfg.get("rate_limit"):
+            self.rate_limit = cfg["rate_limit"]
+        return self
 
     def summary(self) -> dict:
         return {

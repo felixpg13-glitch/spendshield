@@ -100,3 +100,62 @@ if __name__ == "__main__":
     test_approval_allow_and_audit()
     test_failed_execution_no_charge()
     print("\n🎉 全部测试通过")
+
+
+def test_blacklist():
+    """黑名单收款方直接拒绝"""
+    guard = SpendGuard(dry_run=False, blacklist=["未知供应商", "骗子"])
+    @guard.protect("转账")
+    def transfer(amount, to):
+        return "OK"
+    try:
+        transfer(amount=100, to="骗子收款方")
+        assert False, "黑名单应拒绝"
+    except BudgetExceeded:
+        pass
+    assert guard.spent == 0
+    assert guard.records[-1].decision == "blocked_blacklist"
+    print("✅ blacklist: 黑名单拒绝 + 留痕")
+
+
+def test_whitelist_skips_approval():
+    """白名单收款方跳过人工确认"""
+    guard = SpendGuard(dry_run=False, approval=lambda rec: False, whitelist=["麦当劳"])
+    @guard.protect("下单")
+    def place_order(amount, to):
+        return "OK"
+    place_order(amount=20, to="麦当劳官方")
+    assert guard.spent == 20.0
+    print("✅ whitelist: 白名单跳过确认放行")
+
+
+def test_rate_limit():
+    """同收款方频率限制"""
+    guard = SpendGuard(dry_run=False, rate_limit={"window_s": 60, "max_calls": 2})
+    @guard.protect("下单")
+    def place_order(amount, to):
+        return "OK"
+    place_order(amount=1, to="A")
+    place_order(amount=2, to="A")
+    try:
+        place_order(amount=3, to="A")
+        assert False, "第3次应被频率限制拦截"
+    except BudgetExceeded:
+        pass
+    assert guard.spent == 3.0  # 只执行了前两次
+    assert guard.records[-1].decision == "blocked_rate"
+    print("✅ rate_limit: 频率限制拦截 + 留痕")
+
+
+def test_policy_file():
+    """策略文件加载(策略即代码)"""
+    import os, tempfile
+    policy = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "..", "spendguard.yaml.example")
+    guard = SpendGuard(policy=policy)
+    assert guard.dry_run is True
+    assert guard.budget == 200
+    assert "未知供应商" in guard.blacklist
+    assert "麦当劳" in guard.whitelist
+    assert guard.rate_limit.get("max_calls") == 3
+    print("✅ policy: YAML 策略加载成功")

@@ -1,0 +1,31 @@
+# SpendGuard 策略文件(策略即代码)
+# 用法: guard = SpendGuard(policy="spendguard.yaml")
+
+# 干跑模式(默认开): 只预览不真花
+dry_run: true
+
+# 总预算(0 = 不限)
+budget: 200
+
+# 单次上限(0 = 不限)
+max_amount: 500
+
+# 收款方黑名单: 命中直接拒绝
+blacklist:
+  - 未知供应商
+  - 测试收款
+  - "0x"            # 加密货币地址开头
+
+# 收款方白名单: 命中跳过人工确认
+whitelist:
+  - 麦当劳
+  - 官方
+  - example.com
+
+# 频率限制: 同一收款方 window 秒内最多 max_calls 次
+rate_limit:
+  window_s: 60
+  max_calls: 3
+
+# 人工确认: None=不需要 / console=终端 / callable
+approval: console
