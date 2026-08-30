@@ -12,3 +12,6 @@ license = {text = "MIT"}
 
 [tool.setuptools]
 packages = ["spendguard"]
+
+[project.scripts]
+spendguard-mcp = "spendguard.mcp_server:main"
