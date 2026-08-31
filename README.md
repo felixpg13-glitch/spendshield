@@ -38,11 +38,14 @@ Every spend passes all of them. Rules are code, not AI opinion — agents cannot
 pip install spendshield
 ```
 
-Or run it instantly with Docker (MCP server, zero setup):
+Or run it with Docker (MCP server):
 
 ```bash
-docker run -it ghcr.io/felixpg13-glitch/spendshield
+docker build -t spendshield .
+docker run -it spendshield
 ```
+
+> 💡 Pre-built image on GHCR is coming soon (requires a workflow-scoped GitHub token to publish the CI pipeline).
 
 ```python
 from spendshield import SpendShield, KeyVault
