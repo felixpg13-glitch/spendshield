@@ -42,7 +42,7 @@ AI Agent 付款安全层（99 元事故的产物）。Python 生态 + 血泪故�
 - [ ] **合规报告导出**: 对齐国内《智能体支付应用自律公约》(2026-08 发布) KYA + CRA/EU AI Act——国内 Agent 开发者迟早需要合规工具=变现点
 
 ## 未来布局(02:05 定案)
-1. **标准跟随**: 盯 Google AP2 / Coinbase x402, 标准落地时做「标准兼容的 Python 实现」= 第一个吃螃蟹
+1. **标准跟随**: 盯 Google AP2 / Coinbase x402 —— **x402 适配层已落地 ✅(2026-08-31 22:5x)**: spendshield/adapters/x402.py(X402PaywallGuard 服务端 paywall 护栏 + protect_x402_payment 客户端支付前闸门 + confirm 累计) + 6 测试 + README x402 段; x402 官方仓库 6560★ / Python SDK v2.21; 下一个: AP2 落地时同样出适配层
 2. **形态演进**: 库 → MCP server → 支付护栏网关/托管版(企业变现, preloop 模式: 开源+Cloud)
 3. **场景绑定(独门)**: AirGuard 修复批准 / 麦当当自动化 / SparkData API 预算 — 竞品无落地场景, 我们边用边完善
 4. **变现**: 开源免费引流 + 网关/企业版收费(CRA/EU AI Act 合规方向)
