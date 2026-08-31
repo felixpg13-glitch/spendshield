@@ -94,6 +94,27 @@ spendshield-mcp --policy spendshield.yaml
 
 Tools: `spend_protect` / `spend_status` / `spend_audit` / `spend_reset` / `secret_get`
 
+## ⚡ x402 / Agentic Payments 适配
+
+[x402](https://x402.org) is the open payment protocol for the internet (HTTP 402) — how AI agents pay for APIs. SpendShield is the guardrail in front of it: **x402 lets agents pay, SpendShield stops them paying recklessly.**
+
+```python
+from spendshield import SpendShield
+from spendshield.adapters.x402 import X402PaywallGuard, protect_x402_payment
+
+guard = SpendShield(budget=50, dry_run=True)
+pw = X402PaywallGuard(guard)
+
+# Server side: every paid resource passes the gates before settlement
+pw.authorize_resource("weather-api", price="0.01", asset="USDC", pay_to="0x...")
+pw.confirm_payment("weather-api", price="0.01", pay_to="0x...")   # after settlement
+
+# Client side: gate the payment before your agent pays
+protect_x402_payment(guard, amount=0.01, to="weather.example.com", agent="research_bot")
+```
+
+Budget, blacklist, rate limits, human approval, identity (KYA) and audit all apply to x402 payments — new recipients require human sign-off, unregistered agents are denied.
+
 ## 🧪 Tests
 
 30 tests covering gates, identity, intent alignment, vault, and edge cases.
