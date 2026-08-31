@@ -45,6 +45,10 @@ TOOLS = [
     _tool_schema("spend_audit", "最近审计记录(最多 N 条)",
                  {"limit": {"type": "integer", "description": "条数, 默认 10"}}, []),
     _tool_schema("spend_reset", "重置本次会话已花金额(新会话/换预算时用)", {}, []),
+    _tool_schema("secret_get", "从密钥保险库取密钥(过身份+审批闸门, 留审计)。密钥名视为收款方, 可加白名单免问",
+                 {"name": {"type": "string", "description": "密钥名(如 mcd_sk)"},
+                  "agent": {"type": "string", "description": "调用方 Agent 身份 ID"}},
+                 ["name", "agent"]),
 ]
 
 
@@ -81,6 +85,8 @@ class SpendGuardMCP:
         if name == "spend_reset":
             self.guard._spent = 0.0
             return {"ok": True, "message": "已花金额已重置"}
+        if name == "secret_get":
+            return self._secret_get(args)
         raise ValueError(f"未知工具: {name}")
 
     def _protect(self, args: dict) -> dict:
@@ -106,6 +112,17 @@ class SpendGuardMCP:
                     "note": "已放行。请在真实支付前调用你的支付接口"}
         except (DryRunBlocked, BudgetExceeded, NeedsApproval, UnknownAgent) as e:
             return {"ok": False, "reason": str(e), "spent": self.guard.spent}
+
+    def _secret_get(self, args: dict) -> dict:
+        name = args.get("name", "")
+        agent = args.get("agent", "")
+        if self.guard.vault is None:
+            return {"ok": False, "reason": "未配置 KeyVault(需设置 SPENDGUARD_MASTER_KEY + vault 路径)"}
+        try:
+            secret = self.guard.get_secret(name, agent=agent)
+            return {"ok": True, "name": name, "secret": secret}
+        except (DryRunBlocked, BudgetExceeded, NeedsApproval, UnknownAgent, KeyError) as e:
+            return {"ok": False, "reason": str(e)}
 
     # ---------- JSON-RPC 分发 ----------
     def handle(self, line: str) -> str | None:

@@ -9,6 +9,7 @@ description = "AI Agent 付款安全层: 干跑/预算/人工确认/审计 四�
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
+dependencies = ["cryptography>=41"]
 
 [tool.setuptools]
 packages = ["spendguard"]

@@ -7,6 +7,7 @@ from __future__ import annotations
 import functools
 import inspect
 import json
+import os
 import time
 import uuid
 from dataclasses import dataclass, field, asdict
@@ -80,6 +81,7 @@ class SpendGuard:
         allow_unknown: bool = False,           # 未注册 agent 是否回落全局策略(安全默认拒绝)
         approve_new_recipient: bool = True,    # 意图一致性: 新收款方首次交易强制审批(防提示注入); 未配置审批通道则默认拒绝
         approve_above: float = 0.0,            # 意图一致性: 超过该金额的转账强制审批(0 = 不限)
+        key_vault: Optional[Any] = None,       # 密钥保险库(KeyVault 实例): get_secret 过闸门才能取
     ):
         self.budget = budget
         self.dry_run = dry_run
@@ -102,6 +104,7 @@ class SpendGuard:
         self.allow_unknown = allow_unknown
         self.approve_new_recipient = approve_new_recipient
         self.approve_above = approve_above
+        self.vault = key_vault
         self._known_recipients: set[str] = set()   # 成功交易过的收款方(意图一致性记忆)
         for aid, aconf in (agents or {}).items():
             self.register_agent(aid, **{k: v for k, v in aconf.items()
@@ -360,6 +363,19 @@ class SpendGuard:
                     return float(kwargs[nm])
         return 0.0
 
+    def get_secret(self, name: str, *, action: str = "取密钥", agent: str = "", to: str = "") -> str:
+        """密钥保险库取用: 必须先过闸门(身份 + 意图审批), 取用留审计。
+        name: 密钥名(视为收款方, 可加白名单免问); 未配置审批通道时新密钥名默认拒绝。"""
+        if self.vault is None:
+            raise ValueError("未配置 KeyVault: SpendGuard(key_vault=KeyVault(...))")
+        self._check(action, 0.0, to or name, agent=agent)   # 走身份 + 敏感审批闸门
+        secret = self.vault.retrieve(name)
+        rec = self._record(action=action, amount=0.0, to=to or name, agent=agent,
+                           decision="secret_access", reason=f"密钥 {name} 已取用",
+                           spent_after=self._spent)
+        self.log(rec)
+        return secret
+
     def register_agent(self, agent_id: str, *, budget: float = 0.0, max_amount: float = 0.0,
                        blacklist: Optional[list] = None, whitelist: Optional[list] = None,
                        rate_limit: Optional[dict] = None, approval: Optional[Any] = None) -> None:
@@ -412,6 +428,13 @@ class SpendGuard:
             self.approve_new_recipient = bool(cfg["approve_new_recipient"])
         if cfg.get("approve_above") is not None:
             self.approve_above = float(cfg["approve_above"])
+        if cfg.get("vault"):
+            from .vault import KeyVault
+            vpath = cfg["vault"].get("path", "spendguard_vault.json")
+            venv = cfg["vault"].get("master_key_env", "SPENDGUARD_MASTER_KEY")
+            mk = os.environ.get(venv) if venv else None
+            if mk:
+                self.vault = KeyVault(vpath, master_key=mk)
         for aid, aconf in (cfg.get("agents") or {}).items():
             self.register_agent(aid, **{k: v for k, v in aconf.items()
                                         if k in ("budget", "max_amount", "blacklist",

@@ -34,8 +34,8 @@ AI Agent 付款安全层（99 元事故的产物）。Python 生态 + 血泪故�
 
 - [x] **Agent 身份层(KYA 最小实现, v0.4 完成)**: Agent ID + 策略按 ID 绑定(预算/黑名单/频率/approval 按 agent 分) + 未知默认拒绝 + 审计留痕 agent 字段 —— 记录「谁在花」
 - [ ] **调用签名(身份层 v2)**: 每次调用带 agent 签名的 token, 防伪造身份(当前靠调用方自觉传 agent)
-- [ ] **意图一致性**: 敏感操作(新收款方/大额/白名单外)强制 human-in-the-loop, 复用 approval 闸门(TG/Webhook)——提示注入(15万美元案例)的务实解法
-- [ ] **密钥保险库**: 密钥加密存放, guard 解密注入 + 审计谁用了(Fireblocks 最小版, 防「私钥泄露钱包被掏空」)
+- [x] **意图一致性(v0.5 完成)**: 新收款方/大额强制审批(approve_new_recipient/approve_above), 未配审批通道默认拒绝, 交易记忆(known_recipients)——提示注入的务实解法
+- [x] **密钥保险库(v0.6 完成)**: KeyVault(Fernet AES128-CBC+HMAC) 加密落盘, 主密钥环境变量不落盘, get_secret 过身份+意图闸门, 审计 secret_access; MCP secret_get 工具; 落盘无明文(有测试)
 - [ ] **合规报告导出**: 对齐国内《智能体支付应用自律公约》(2026-08 发布) KYA + CRA/EU AI Act——国内 Agent 开发者迟早需要合规工具=变现点
 
 ## 未来布局(02:05 定案)

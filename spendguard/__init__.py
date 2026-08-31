@@ -23,9 +23,10 @@ AI 时代, 别让 Agent 替你花钱之前没有闸门。
         return {"ok": True}
 """
 from .guard import SpendGuard, GuardedError, BudgetExceeded, NeedsApproval, DryRunBlocked, UnknownAgent, AuditRecord
+from .vault import KeyVault
 
-__version__ = "0.4.0"
+__version__ = "0.6.0"
 __all__ = [
     "SpendGuard", "GuardedError", "BudgetExceeded",
-    "NeedsApproval", "DryRunBlocked", "UnknownAgent", "AuditRecord",
+    "NeedsApproval", "DryRunBlocked", "UnknownAgent", "AuditRecord", "KeyVault",
 ]

@@ -64,6 +64,30 @@ guard = SpendGuard(approve_new_recipient=True, approve_above=1000)
 - 未配置审批通道时，敏感操作**直接拒绝**（宁可拦死，不放行）
 - 拦截记录 `blocked_approval` 带原因：新收款方 / 超阈值 / 未配置通道
 
+## 🔐 密钥保险库（v0.6）
+
+私钥不落地是 AI 支付的命门——**一次泄露，钱包被掏空**。密钥加密落盘，主密钥放环境变量，取用必须过闸门：
+
+```bash
+python -c "from spendguard import KeyVault; print(KeyVault.generate_key())"  # 生成主密钥(仅此一次)
+export SPENDGUARD_MASTER_KEY=<刚才的输出>   # 放环境变量, 别写进代码/仓库
+```
+
+```python
+from spendguard import SpendGuard, KeyVault
+
+vault = KeyVault("vault.json")              # 主密钥从环境变量读
+vault.store("mcd_sk", "sk_live_xxxx")      # 加密落盘, 文件里只有密文
+
+guard = SpendGuard(key_vault=vault)
+guard.register_agent("mcd_bot", whitelist=["mcd_sk"])
+sk = guard.get_secret("mcd_sk", agent="mcd_bot")   # 过身份+意图闸门才能取
+```
+
+- 落盘文件无明文（AES128-CBC + HMAC）；主密钥不落盘
+- 取密钥 = 敏感操作：未注册 agent 拒绝；新密钥名无审批通道默认拒绝（防提示注入偷密钥）
+- 每次取用留审计 `secret_access`：谁、何时、取了哪个密钥
+
 ## 🚀 快速开始
 
 ```bash

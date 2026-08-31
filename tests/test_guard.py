@@ -402,3 +402,82 @@ def test_intent_with_approval_channel():
     transfer(amount=10, to="麦当劳官方")  # 白名单 → 跳过审批
     assert guard.spent == 20.0
     print("✅ intent: 有审批通道时新收款方走审批, 白名单跳过")
+
+
+# ============ 🔐 密钥保险库(Fireblocks 最小版) ============
+
+def test_vault_store_retrieve():
+    """加密存储 + 解密取回, 落盘无明文"""
+    import tempfile, os as _os
+    from spendguard import KeyVault
+    mk = KeyVault.generate_key()
+    with tempfile.TemporaryDirectory() as td:
+        path = _os.path.join(td, "vault.json")
+        vault = KeyVault(path, master_key=mk)
+        vault.store("mcd_sk", "sk_live_123456")
+        assert vault.retrieve("mcd_sk") == "sk_live_123456"
+        raw = open(path, encoding="utf-8").read()
+        assert "sk_live_123456" not in raw, "落盘文件不能含明文"
+        print("✅ vault: 加密落盘, 文件无明文")
+
+
+def test_vault_requires_master_key():
+    """没有主密钥拒绝启动(主密钥不落盘原则)"""
+    import os as _os
+    from spendguard import KeyVault
+    _os.environ.pop("SPENDGUARD_MASTER_KEY", None)
+    try:
+        KeyVault("/tmp/x_vault_test.json")
+        assert False, "缺主密钥应报错"
+    except ValueError:
+        pass
+    print("✅ vault: 缺主密钥拒绝启动")
+
+
+def test_secret_access_via_guard():
+    """guard.get_secret 过闸门: 注册 agent + 密钥名白名单 → 取到 + 审计"""
+    import tempfile, os as _os
+    from spendguard import KeyVault
+    with tempfile.TemporaryDirectory() as td:
+        vault = KeyVault(_os.path.join(td, "vault.json"), master_key=KeyVault.generate_key())
+        vault.store("mcd_sk", "sk_live_secret")
+        guard = SpendGuard(dry_run=False, key_vault=vault, approve_new_recipient=False)
+        guard.register_agent("mcd_bot", whitelist=["mcd_sk"])
+        sk = guard.get_secret("mcd_sk", agent="mcd_bot")
+        assert sk == "sk_live_secret"
+        assert guard.records[-1].decision == "secret_access"
+        assert guard.records[-1].agent == "mcd_bot"
+        print("✅ get_secret: 过闸门取密钥 + 审计留痕")
+
+
+def test_secret_denied_unknown_agent():
+    """未注册 agent 取密钥被拒"""
+    import tempfile, os as _os
+    from spendguard import KeyVault
+    with tempfile.TemporaryDirectory() as td:
+        vault = KeyVault(_os.path.join(td, "vault.json"), master_key=KeyVault.generate_key())
+        vault.store("mcd_sk", "sk_live_secret")
+        guard = SpendGuard(dry_run=False, key_vault=vault)
+        try:
+            guard.get_secret("mcd_sk", agent="hacker")
+            assert False, "未注册 agent 取密钥应被拒"
+        except UnknownAgent:
+            pass
+        print("✅ get_secret: 未注册 agent 拒绝")
+
+
+def test_secret_denied_new_name_no_channel():
+    """新密钥名 + 无审批通道 → 默认拒绝(防提示注入偷密钥)"""
+    import tempfile, os as _os
+    from spendguard import KeyVault
+    with tempfile.TemporaryDirectory() as td:
+        vault = KeyVault(_os.path.join(td, "vault.json"), master_key=KeyVault.generate_key())
+        vault.store("admin_key", "super_secret")
+        guard = SpendGuard(dry_run=False, key_vault=vault)
+        guard.register_agent("mcd_bot")
+        try:
+            guard.get_secret("admin_key", agent="mcd_bot")
+            assert False, "新密钥名无审批通道应拒绝"
+        except NeedsApproval:
+            pass
+        print("✅ get_secret: 新密钥名默认拒绝(防偷密钥)")
