@@ -1,8 +1,10 @@
-# 💰 SpendShield — The Universal Security Layer for AI Payments
+# 💰 SpendShield — The Policy Orchestration Layer for AI Payments
 
 > **Before your AI spends real money, it passes through SpendShield.**
 
-An open-source payment safety layer for Python and MCP — **a universal adapter that bridges AI agents and fragmented payment standards** (x402-ready, pluggable architecture, open standards in progress). Give your AI agent a **spend-capped digital identity (KYA)**, run every payment through four deterministic gates, defend against prompt injection, and keep secrets in an encrypted vault.
+SpendShield is the **policy orchestration layer** for AI payments: it doesn't care whether the money moves through x402, Alipay, WeChat or Visa — **it only decides whether the payment should happen at all**, using deterministic rules (budget, limits, approval, blacklists).
+
+You wrap your payment function with `@guard.protect()`, and SpendShield becomes the final judge between "can pay" and "should pay". The payment channel is your code — **pluggable, swappable, never locked in by a vendor's protocol.**
 
 ## 🩸 Why this project exists (a real incident)
 
