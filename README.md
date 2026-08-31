@@ -1,8 +1,8 @@
-# 💰 SpendShield — Payment Guardrails for AI Agents
+# 💰 SpendShield — The Universal Security Layer for AI Payments
 
 > **Before your AI spends real money, it passes through SpendShield.**
 
-An open-source payment safety layer for Python and MCP. Give your AI agent a **spend-capped digital identity (KYA)**, run every payment through four deterministic gates, defend against prompt injection, and keep secrets in an encrypted vault.
+An open-source payment safety layer for Python and MCP — **a universal adapter that bridges AI agents and fragmented payment standards** (x402-ready, pluggable architecture, open standards in progress). Give your AI agent a **spend-capped digital identity (KYA)**, run every payment through four deterministic gates, defend against prompt injection, and keep secrets in an encrypted vault.
 
 ## 🩸 Why this project exists (a real incident)
 
