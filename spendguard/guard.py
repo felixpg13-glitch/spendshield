@@ -310,14 +310,15 @@ class SpendGuard:
         装饰器: 给花钱函数加闸门。
         max_amount: 单次上限(0 = 不限)
         agent: Agent 身份 ID(建议必填, 未注册默认拒绝)。也可运行时传 kwargs agent=xx
-        函数签名需能取出金额: 参数名含 amount/price/cost/金额, 或显式传 amount=xx
+        函数签名需能取出金额和收款方: 参数名 amount/price/cost + to/recipient/target,
+        或显式传 amount=xx / to=xx(支持位置传参)
         """
         def deco(fn: Callable) -> Callable:
             @functools.wraps(fn)
             def wrapper(*args, **kwargs):
                 ag = kwargs.get("agent") or agent or ""
                 amount = self._extract_amount(fn, args, kwargs)
-                to = str(kwargs.get("to", "(unknown)"))
+                to = self._extract_to(fn, args, kwargs)
                 if "agent" in kwargs and "agent" not in inspect.signature(fn).parameters:
                     kwargs.pop("agent")   # 不透传给业务函数
                 if max_amount > 0 and amount > max_amount:
@@ -401,6 +402,21 @@ class SpendGuard:
             raise UnknownAgent(f"未注册的 Agent 身份: {agent_id!r}(先 register_agent 或 allow_unknown=True)")
         return self._agents[agent_id]
 
+    @staticmethod
+    def _extract_to(fn: Callable, args: tuple, kwargs: dict) -> str:
+        """从参数里提取收款方: 优先显式 to=, 其次参数名 to/recipient/target(支持位置传参)"""
+        if "to" in kwargs:
+            return str(kwargs["to"])
+        sig = inspect.signature(fn)
+        names = list(sig.parameters.keys())
+        for i, nm in enumerate(names):
+            if nm in ("to", "recipient", "target"):
+                if i < len(args):
+                    return str(args[i])
+                if nm in kwargs:
+                    return str(kwargs[nm])
+        return "(unknown)"
+
     def load_policy(self, path: str):
         """从 YAML 策略文件加载配置(策略即代码)"""
         import yaml
@@ -478,7 +494,10 @@ class SpendGuard:
         }
 
     def export_audit(self, path: str = "spendguard_audit.json") -> str:
-        """导出审计日志"""
+        """导出审计日志(自动创建父目录)"""
+        d = os.path.dirname(os.path.abspath(path))
+        if d:
+            os.makedirs(d, exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             json.dump([r.to_dict() for r in self.records], f, ensure_ascii=False, indent=2)
         return path

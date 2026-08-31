@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spendguard"
-version = "0.1.0"
+version = "0.6.0"
 description = "AI Agent 付款安全层: 干跑/预算/人工确认/审计 四道闸门"
 readme = "README.md"
 requires-python = ">=3.9"

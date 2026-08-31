@@ -481,3 +481,49 @@ def test_secret_denied_new_name_no_channel():
         except NeedsApproval:
             pass
         print("✅ get_secret: 新密钥名默认拒绝(防偷密钥)")
+
+
+# ============ 🐛 回归: 位置传参 + 审计导出 ============
+
+def test_positional_to_blacklist():
+    """位置传参时收款方也能被识别(黑名单/意图检查不能只认 kwargs)"""
+    guard = SpendGuard(dry_run=False, blacklist=["骗子"], approve_new_recipient=False)
+    @guard.protect("转账")
+    def transfer(amount, to):
+        return "OK"
+    try:
+        transfer(100, "骗子店铺A")   # 位置传参
+        assert False, "位置传参的黑名单应拦截"
+    except BudgetExceeded:
+        pass
+    assert guard.spent == 0
+    assert guard.records[-1].decision == "blocked_blacklist"
+    print("✅ 回归: 位置传参收款方被黑名单识别")
+
+
+def test_positional_to_whitelist():
+    """位置传参时白名单收款方跳过审批"""
+    guard = SpendGuard(dry_run=False, approval=lambda rec: False, whitelist=["麦当劳"])
+    @guard.protect("下单")
+    def place_order(amount, to):
+        return "OK"
+    place_order(20, "麦当劳官方店")   # 位置传参
+    assert guard.spent == 20.0
+    print("✅ 回归: 位置传参白名单跳过审批")
+
+
+def test_export_audit_nested_dir():
+    """审计导出到不存在的目录自动创建"""
+    import tempfile, os as _os, json
+    guard = SpendGuard(dry_run=False, approve_new_recipient=False)
+    @guard.protect("下单")
+    def place_order(amount, to):
+        return "OK"
+    place_order(amount=10, to="麦当劳")
+    with tempfile.TemporaryDirectory() as td:
+        path = _os.path.join(td, "a", "b", "audit.json")   # 深层不存在目录
+        guard.export_audit(path)
+        assert _os.path.exists(path)
+        data = json.load(open(path, encoding="utf-8"))
+        assert data[-1]["decision"] == "executed"
+    print("✅ 回归: 审计导出自动建目录")
