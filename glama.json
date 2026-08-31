@@ -1,10 +1,23 @@
 {
   "name": "spendshield",
-  "description": "AI payment guardrails for Python & MCP: spend-capped agent identity (KYA), four deterministic gates, prompt-injection defense, encrypted secret vault.",
+  "description": "AI payment guardrails for Python & MCP: spend-capped agent identity (KYA), four deterministic gates (dry-run, budget, per-transaction limit, human approval), prompt-injection defense, encrypted secret vault.",
   "version": "0.6.1",
   "repository": "https://github.com/felixpg13-glitch/spendshield",
   "license": "MIT",
   "author": "felixpg13-glitch",
   "tags": ["ai-agents", "mcp", "payment-security", "guardrails", "python", "llm-security"],
-  "languages": ["python"]
+  "environmentVariablesJsonSchema": {
+    "properties": {
+      "SPENDGUARD_MASTER_KEY": {
+        "description": "Master key used by the key vault for encryption. Required if the policy uses a key vault.",
+        "type": "string"
+      },
+      "SPENDGUARD_POLICY": {
+        "description": "Path to the SpendShield policy YAML file.",
+        "type": "string"
+      }
+    },
+    "required": [],
+    "type": "object"
+  }
 }
