@@ -3,7 +3,7 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from spendguard import SpendGuard, DryRunBlocked, BudgetExceeded, NeedsApproval
+from spendguard import SpendGuard, DryRunBlocked, BudgetExceeded, NeedsApproval, UnknownAgent
 
 
 def test_dry_run():
@@ -228,3 +228,107 @@ def test_webhook_approval_deny():
     assert guard.spent == 0
     srv.shutdown()
     print("✅ webhook: 拒绝时拦截 + 不扣款")
+
+
+# ============ 🔑 身份层(KYA 最小实现) ============
+
+def test_agent_identity():
+    """Agent 身份: 注册后放行, 审计带 agent 字段, 按 agent 记已花"""
+    guard = SpendGuard(dry_run=False, budget=1000)
+    guard.register_agent("mcd_bot", budget=100)
+    @guard.protect("下单", agent="mcd_bot")
+    def place_order(amount, to):
+        return "OK"
+    place_order(amount=20, to="麦当劳")
+    assert guard._agent_spent.get("mcd_bot") == 20.0
+    assert guard.records[-1].agent == "mcd_bot"
+    assert guard.records[-1].decision == "executed"
+    print("✅ agent: 身份识别 + 审计留痕 + 按 agent 记已花")
+
+
+def test_unknown_agent_rejected():
+    """未注册 agent 默认拒绝(安全默认)"""
+    guard = SpendGuard(dry_run=False)
+    @guard.protect("下单")
+    def place_order(amount, to):
+        return "OK"
+    try:
+        place_order(amount=10, to="X", agent="hacker")
+        assert False, "未注册 agent 应被拒绝"
+    except UnknownAgent:
+        pass
+    assert guard.spent == 0
+    assert guard.records[-1].agent == "hacker"
+    assert guard.records[-1].decision == "blocked_unknown_agent"
+    print("✅ unknown agent: 默认拒绝 + 留痕")
+
+
+def test_allow_unknown_fallback():
+    """allow_unknown=True 回落全局策略"""
+    guard = SpendGuard(dry_run=False, budget=100, allow_unknown=True)
+    @guard.protect("下单")
+    def place_order(amount, to):
+        return "OK"
+    place_order(amount=10, to="X", agent="stranger")
+    assert guard.spent == 10.0
+    print("✅ allow_unknown: 回落全局策略")
+
+
+def test_agent_budget_isolation():
+    """agent 级预算隔离: A 花完不影响 B"""
+    guard = SpendGuard(dry_run=False, budget=1000)
+    guard.register_agent("A", budget=50)
+    guard.register_agent("B", budget=50)
+    @guard.protect("下单")
+    def place_order(amount, to, agent=""):
+        return "OK"
+    place_order(amount=50, to="a", agent="A")
+    try:
+        place_order(amount=10, to="a2", agent="A")
+        assert False, "A 超预算应拦截"
+    except BudgetExceeded:
+        pass
+    place_order(amount=50, to="b", agent="B")  # B 不受影响
+    assert guard._agent_spent["B"] == 50.0
+    assert any(r.agent == "A" and r.decision == "blocked_budget" for r in guard.records)
+    print("✅ agent budget: 预算隔离")
+
+
+def test_agent_blacklist_and_rate():
+    """agent 级黑名单只拦该 agent; 频率限制按 agent+收款方"""
+    guard = SpendGuard(dry_run=False, budget=1000)
+    guard.register_agent("A", blacklist=["骗子"], rate_limit={"window_s": 60, "max_calls": 2})
+    @guard.protect("转账")
+    def transfer(amount, to, agent=""):
+        return "OK"
+    try:
+        transfer(amount=1, to="骗子收款", agent="A")
+        assert False, "A 的黑名单应拒绝"
+    except BudgetExceeded:
+        pass
+    transfer(amount=1, to="骗子收款")  # 无 agent(全局)不受 A 黑名单影响
+    assert guard.spent == 1.0
+    transfer(amount=1, to="正常商家", agent="A")
+    transfer(amount=2, to="正常商家", agent="A")
+    try:
+        transfer(amount=3, to="正常商家", agent="A")
+        assert False, "A 第3次应被频率拦截"
+    except BudgetExceeded:
+        pass
+    transfer(amount=3, to="正常商家")  # 全局不受 A 频率影响
+    assert guard.spent == 7.0
+    print("✅ agent 黑名单/频率: 按 agent 隔离")
+
+
+def test_policy_agents_yaml():
+    """YAML agents 段加载身份策略"""
+    import os, tempfile, yaml
+    policy = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                          "..", "spendguard.yaml.example")
+    guard = SpendGuard(policy=policy)
+    assert guard.allow_unknown is False
+    assert "mcd_bot" in guard._agents
+    assert guard._agents["mcd_bot"]["budget"] == 50
+    assert "麦当劳" in guard._agents["mcd_bot"]["whitelist"]
+    assert guard._agents["airguard_repair"]["approval"] == "tg"
+    print("✅ policy agents: YAML 身份策略加载成功")

@@ -29,6 +29,10 @@ class NeedsApproval(GuardedError):
     """需要人工确认: 未获批准, 动作未执行"""
 
 
+class UnknownAgent(GuardedError):
+    """未注册的 Agent 身份: 默认拒绝(安全默认)"""
+
+
 @dataclass
 class AuditRecord:
     """一次被闸门处理的记录"""
@@ -37,6 +41,7 @@ class AuditRecord:
     action: str = ""
     amount: float = 0.0
     to: str = ""
+    agent: str = ""           # 调用方 Agent 身份(KYA 最小实现)
     decision: str = ""       # preview / blocked_budget / blocked_approval / executed / dry_run
     reason: str = ""
     spent_after: float = 0.0
@@ -71,6 +76,8 @@ class SpendGuard:
         tg_token: str = "",                    # 远程审批: TG bot token
         tg_chat: str = "",                     # 远程审批: TG chat id
         webhook_url: str = "",                 # 远程审批: Webhook URL
+        agents: Optional[dict] = None,         # Agent 身份层: {agent_id: {budget/max_amount/blacklist/...}}
+        allow_unknown: bool = False,           # 未注册 agent 是否回落全局策略(安全默认拒绝)
     ):
         self.budget = budget
         self.dry_run = dry_run
@@ -85,9 +92,16 @@ class SpendGuard:
         self.webhook_url = webhook_url
         self._tg_offset = 0
         self.default_max_amount = 0.0
-        self._rate_hits: list[tuple] = []      # (ts, to)
+        self._rate_hits: list[tuple] = []      # (ts, agent, to)
         self._spent = 0.0
         self.records: list[AuditRecord] = []
+        self._agents: dict[str, dict] = {}
+        self._agent_spent: dict[str, float] = {}
+        self.allow_unknown = allow_unknown
+        for aid, aconf in (agents or {}).items():
+            self.register_agent(aid, **{k: v for k, v in aconf.items()
+                                        if k in ("budget", "max_amount", "blacklist",
+                                                 "whitelist", "rate_limit", "approval")})
         if policy:
             self.load_policy(policy)
 
@@ -100,11 +114,30 @@ class SpendGuard:
         self.records.append(rec)
         return rec
 
-    def _check(self, action: str, amount: float, to: str) -> AuditRecord:
-        """四道闸门, 返回通过的记录(未执行), 抛异常则被拦"""
+    def _check(self, action: str, amount: float, to: str, agent: str = "") -> AuditRecord:
+        """四道闸门, 返回通过的记录(未执行), 抛异常则被拦。
+        agent: 调用方身份(Agent ID, KYA 最小实现)。未注册默认拒绝, allow_unknown=True 回落全局策略。"""
+        try:
+            ap = self._agent_policy(agent)
+        except UnknownAgent:
+            rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                               decision="blocked_unknown_agent", reason="未注册的 Agent 身份, 默认拒绝",
+                               spent_after=self._spent)
+            self.log(rec)
+            if self.on_block:
+                self.on_block(rec)
+            raise
+        # 合并生效策略: agent 级覆盖全局
+        bl = self.blacklist + list(ap.get("blacklist", []))
+        wl = self.whitelist + list(ap.get("whitelist", []))
+        rl = ap.get("rate_limit") or self.rate_limit
+        ab = float(ap.get("budget", 0) or 0)
+        appr = ap.get("approval") if "approval" in ap else self.approval
+        agent_spent = self._agent_spent.get(agent, 0.0) if agent else self._spent
+
         # 1. dry_run 干跑
         if self.dry_run:
-            rec = self._record(action=action, amount=amount, to=to,
+            rec = self._record(action=action, amount=amount, to=to, agent=agent,
                                decision="dry_run", reason="dry_run=True 干跑模式, 未执行",
                                spent_after=self._spent)
             self.log(rec)
@@ -112,8 +145,8 @@ class SpendGuard:
 
         # 1.5 黑名单: 直接拒绝
         to_l = str(to).lower()
-        if any(b in to_l for b in self.blacklist):
-            rec = self._record(action=action, amount=amount, to=to,
+        if any(b in to_l for b in bl):
+            rec = self._record(action=action, amount=amount, to=to, agent=agent,
                                decision="blocked_blacklist", reason=f"收款方在黑名单: {to}",
                                spent_after=self._spent)
             self.log(rec)
@@ -121,73 +154,84 @@ class SpendGuard:
                 self.on_block(rec)
             raise BudgetExceeded(f"[黑名单] {action} ¥{amount} -> {to} 被拒绝(黑名单收款方)")
 
-        # 1.6 频率限制: 同一收款方 window 内 max_calls 次
-        if self.rate_limit:
+        # 1.6 频率限制: 同一 agent+收款方 window 内 max_calls 次
+        if rl:
             now = time.time()
-            window = self.rate_limit.get("window_s", 60)
-            max_calls = self.rate_limit.get("max_calls", 3)
-            self._rate_hits = [(t, r) for t, r in self._rate_hits if now - t < window]
-            hits = sum(1 for _, r in self._rate_hits if r == to_l)
+            window = rl.get("window_s", 60)
+            max_calls = rl.get("max_calls", 3)
+            self._rate_hits = [(t, a, r) for t, a, r in self._rate_hits if now - t < window]
+            hits = sum(1 for _, a, r in self._rate_hits if r == to_l and a == agent)
             if hits >= max_calls:
-                rec = self._record(action=action, amount=amount, to=to,
+                rec = self._record(action=action, amount=amount, to=to, agent=agent,
                                    decision="blocked_rate", reason=f"收款方 {to} {window}s 内超过 {max_calls} 次",
                                    spent_after=self._spent)
                 self.log(rec)
                 if self.on_block:
                     self.on_block(rec)
                 raise BudgetExceeded(f"[频率] {action} ¥{amount} -> {to} 触发频率限制({window}s/{max_calls}次)")
-            self._rate_hits.append((now, to_l))
+            self._rate_hits.append((now, agent, to_l))
 
-        # 2. 预算
-        if self.budget > 0 and self._spent + amount > self.budget:
-            rec = self._record(action=action, amount=amount, to=to,
+        # 2. 预算: agent 级分闸优先, 全局总闸兜底
+        if ab > 0 and agent_spent + amount > ab:
+            rec = self._record(action=action, amount=amount, to=to, agent=agent,
                                decision="blocked_budget",
-                               reason=f"已花 ¥{self._spent:.2f} + ¥{amount:.2f} > 预算 ¥{self.budget:.2f}",
+                               reason=f"Agent[{agent}] 已花 ¥{agent_spent:.2f} + ¥{amount:.2f} > 预算 ¥{ab:.2f}",
                                spent_after=self._spent)
             self.log(rec)
             if self.on_block:
                 self.on_block(rec)
-            raise BudgetExceeded(f"[预算] {action} ¥{amount} 超支: 已花 ¥{self._spent:.2f}, 预算 ¥{self.budget:.2f}")
+            raise BudgetExceeded(f"[预算] {action} ¥{amount} 超支: Agent[{agent}] 已花 ¥{agent_spent:.2f}, 预算 ¥{ab:.2f}")
+        if self.budget > 0 and self._spent + amount > self.budget:
+            rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                               decision="blocked_budget",
+                               reason=f"已花 ¥{self._spent:.2f} + ¥{amount:.2f} > 总预算 ¥{self.budget:.2f}",
+                               spent_after=self._spent)
+            self.log(rec)
+            if self.on_block:
+                self.on_block(rec)
+            raise BudgetExceeded(f"[预算] {action} ¥{amount} 超支: 已花 ¥{self._spent:.2f}, 总预算 ¥{self.budget:.2f}")
 
         # 2.5 白名单: 跳过人工确认
-        if any(w in to_l for w in self.whitelist):
+        if any(w in to_l for w in wl):
             pass
         # 3. 人工确认
-        elif self.approval is not None:
-            ok = self._ask(action, amount, to)
+        elif appr is not None:
+            ok = self._ask(action, amount, to, agent)
             if not ok:
-                rec = self._record(action=action, amount=amount, to=to,
+                rec = self._record(action=action, amount=amount, to=to, agent=agent,
                                    decision="blocked_approval", reason="人工确认被拒",
                                    spent_after=self._spent)
                 self.log(rec)
                 if self.on_block:
                     self.on_block(rec)
                 raise NeedsApproval(f"[确认] {action} ¥{amount} -> {to} 未获批准")
-        return self._record(action=action, amount=amount, to=to,
+        return self._record(action=action, amount=amount, to=to, agent=agent,
                             decision="executed", reason="", spent_after=self._spent)
 
-    def _ask(self, action: str, amount: float, to: str) -> bool:
+    def _ask(self, action: str, amount: float, to: str, agent: str = "") -> bool:
+        who = f"[{agent}] " if agent else ""
         if callable(self.approval):
-            return bool(self.approval({"action": action, "amount": amount, "to": to}))
+            return bool(self.approval({"action": action, "amount": amount, "to": to, "agent": agent}))
         if self.approval == "console":
             try:
-                ans = input(f"\n⚠️  {action} ¥{amount:.2f} -> {to}\n   确认执行? [y/N] ").strip().lower()
+                ans = input(f"\n⚠️  {who}{action} ¥{amount:.2f} -> {to}\n   确认执行? [y/N] ").strip().lower()
                 return ans in ("y", "yes")
             except EOFError:
                 return False
         if self.approval == "tg":
-            return self._ask_tg(action, amount, to)
+            return self._ask_tg(action, amount, to, agent=agent)
         if self.approval == "webhook":
-            return self._ask_webhook(action, amount, to)
+            return self._ask_webhook(action, amount, to, agent=agent)
         return False  # 未知模式 = 拒绝(安全默认)
 
-    def _ask_tg(self, action: str, amount: float, to: str, timeout_s: int = 60) -> bool:
+    def _ask_tg(self, action: str, amount: float, to: str, timeout_s: int = 60, agent: str = "") -> bool:
         """TG 远程审批: 发消息等回复 y/n"""
         import urllib.request
         if not self.tg_token or not self.tg_chat:
             return False
         try:
-            text = f"⚠️  SpendGuard 审批\n{action} ¥{amount:.2f} -> {to}\n回复 y 确认 / n 拒绝"
+            who = f"[{agent}] " if agent else ""
+            text = f"⚠️  SpendGuard 审批\n{who}{action} ¥{amount:.2f} -> {to}\n回复 y 确认 / n 拒绝"
             url = f"https://api.telegram.org/bot{self.tg_token}/sendMessage"
             body = json.dumps({"chat_id": self.tg_chat, "text": text}).encode()
             req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
@@ -213,13 +257,13 @@ class SpendGuard:
         except Exception:
             return False
 
-    def _ask_webhook(self, action: str, amount: float, to: str, timeout_s: int = 15) -> bool:
+    def _ask_webhook(self, action: str, amount: float, to: str, timeout_s: int = 15, agent: str = "") -> bool:
         """Webhook 远程审批: POST 到审核服务, 等 {approved: bool}"""
         import urllib.request
         if not self.webhook_url:
             return False
         try:
-            body = json.dumps({"action": action, "amount": amount, "to": to}).encode()
+            body = json.dumps({"action": action, "amount": amount, "to": to, "agent": agent}).encode()
             req = urllib.request.Request(self.webhook_url, data=body,
                                          headers={"Content-Type": "application/json"})
             with urllib.request.urlopen(req, timeout=timeout_s) as r:
@@ -228,18 +272,23 @@ class SpendGuard:
         except Exception:
             return False
 
-    def protect(self, action: str, max_amount: float = 0.0):
+    def protect(self, action: str, max_amount: float = 0.0, agent: str = ""):
         """
         装饰器: 给花钱函数加闸门。
         max_amount: 单次上限(0 = 不限)
+        agent: Agent 身份 ID(建议必填, 未注册默认拒绝)。也可运行时传 kwargs agent=xx
         函数签名需能取出金额: 参数名含 amount/price/cost/金额, 或显式传 amount=xx
         """
         def deco(fn: Callable) -> Callable:
             @functools.wraps(fn)
             def wrapper(*args, **kwargs):
+                ag = kwargs.get("agent") or agent or ""
                 amount = self._extract_amount(fn, args, kwargs)
+                to = str(kwargs.get("to", "(unknown)"))
+                if "agent" in kwargs and "agent" not in inspect.signature(fn).parameters:
+                    kwargs.pop("agent")   # 不透传给业务函数
                 if max_amount > 0 and amount > max_amount:
-                    rec = self._record(action=action, amount=amount, to="(unknown)",
+                    rec = self._record(action=action, amount=amount, to=to, agent=ag,
                                        decision="blocked_budget",
                                        reason=f"单次 ¥{amount:.2f} > 上限 ¥{max_amount:.2f}",
                                        spent_after=self._spent)
@@ -248,7 +297,7 @@ class SpendGuard:
                         self.on_block(rec)
                     raise BudgetExceeded(f"[单次上限] {action} ¥{amount} 超过 ¥{max_amount}")
                 # 通过闸门(执行前记录, 执行后更新已花)
-                rec = self._check(action, amount, str(kwargs.get("to", "(unknown)")))
+                rec = self._check(action, amount, to, agent=ag)
                 try:
                     result = fn(*args, **kwargs)
                 except Exception as e:
@@ -257,6 +306,8 @@ class SpendGuard:
                     self.log(rec)
                     raise
                 self._spent += amount
+                if ag:
+                    self._agent_spent[ag] = self._agent_spent.get(ag, 0.0) + amount
                 rec.spent_after = self._spent
                 self.log(rec)
                 return result
@@ -277,6 +328,31 @@ class SpendGuard:
                 if nm in kwargs:
                     return float(kwargs[nm])
         return 0.0
+
+    def register_agent(self, agent_id: str, *, budget: float = 0.0, max_amount: float = 0.0,
+                       blacklist: Optional[list] = None, whitelist: Optional[list] = None,
+                       rate_limit: Optional[dict] = None, approval: Optional[Any] = None) -> None:
+        """注册 Agent 身份及其专属策略(KYA 最小实现)。未注册的 agent 调用默认被拒。"""
+        if not agent_id:
+            raise ValueError("agent_id 不能为空")
+        self._agents[agent_id] = {
+            "budget": float(budget or 0),
+            "max_amount": float(max_amount or 0),
+            "blacklist": [str(x).lower() for x in (blacklist or [])],
+            "whitelist": [str(x).lower() for x in (whitelist or [])],
+            "rate_limit": rate_limit or {},
+            "approval": approval,
+        }
+
+    def _agent_policy(self, agent_id: str) -> dict:
+        """解析 Agent 身份: 未注册默认拒绝(安全默认), allow_unknown=True 回落全局策略"""
+        if not agent_id:
+            return {}
+        if agent_id not in self._agents:
+            if self.allow_unknown:
+                return {}
+            raise UnknownAgent(f"未注册的 Agent 身份: {agent_id!r}(先 register_agent 或 allow_unknown=True)")
+        return self._agents[agent_id]
 
     def load_policy(self, path: str):
         """从 YAML 策略文件加载配置(策略即代码)"""
@@ -299,21 +375,38 @@ class SpendGuard:
             self.tg_chat = cfg["tg"].get("chat", self.tg_chat)
         if cfg.get("webhook_url"):
             self.webhook_url = cfg["webhook_url"]
+        if cfg.get("allow_unknown") is not None:
+            self.allow_unknown = bool(cfg["allow_unknown"])
+        for aid, aconf in (cfg.get("agents") or {}).items():
+            self.register_agent(aid, **{k: v for k, v in aconf.items()
+                                        if k in ("budget", "max_amount", "blacklist",
+                                                 "whitelist", "rate_limit", "approval")})
         return self
 
-    def _authorize(self, action: str, amount: float, to: str) -> bool:
+    def _authorize(self, action: str, amount: float, to: str, agent: str = "") -> bool:
         """MCP/程序化调用入口: 走全部闸门, 通过返回 True, 被拦抛异常"""
-        if self.default_max_amount > 0 and amount > self.default_max_amount:
-            rec = self._record(action=action, amount=amount, to=to,
+        ap = self._agent_policy(agent)
+        amax = float(ap.get("max_amount", 0) or 0) or self.default_max_amount
+        if amax > 0 and amount > amax:
+            rec = self._record(action=action, amount=amount, to=to, agent=agent,
                                decision="blocked_budget",
-                               reason=f"单次 ¥{amount:.2f} > 上限 ¥{self.default_max_amount:.2f}",
+                               reason=f"单次 ¥{amount:.2f} > 上限 ¥{amax:.2f}",
                                spent_after=self._spent)
             self.log(rec)
-            raise BudgetExceeded(f"[单次上限] {action} ¥{amount} 超过 ¥{self.default_max_amount}")
-        self._check(action, amount, to)
+            raise BudgetExceeded(f"[单次上限] {action} ¥{amount} 超过 ¥{amax}")
+        self._check(action, amount, to, agent=agent)
         return True
 
     def summary(self) -> dict:
+        agents = {
+            k: {
+                "budget": v.get("budget", 0),
+                "spent": round(self._agent_spent.get(k, 0.0), 2),
+                "blocked": sum(1 for r in self.records
+                               if r.agent == k and (r.decision.startswith("blocked") or r.decision == "dry_run")),
+            }
+            for k in self._agents
+        }
         return {
             "dry_run": self.dry_run,
             "budget": self.budget,
@@ -322,6 +415,7 @@ class SpendGuard:
             "records": len(self.records),
             "blocked": sum(1 for r in self.records if r.decision.startswith("blocked") or r.decision == "dry_run"),
             "executed": sum(1 for r in self.records if r.decision == "executed"),
+            "agents": agents,
         }
 
     def export_audit(self, path: str = "spendguard_audit.json") -> str:

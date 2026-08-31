@@ -21,7 +21,7 @@ import json
 import os
 import sys
 
-from .guard import SpendGuard, DryRunBlocked, BudgetExceeded, NeedsApproval
+from .guard import SpendGuard, DryRunBlocked, BudgetExceeded, NeedsApproval, UnknownAgent
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "spendguard"
@@ -38,7 +38,8 @@ TOOLS = [
                  "通过返回 ok=true; 被拦返回 ok=false + reason",
                  {"action": {"type": "string", "description": "操作名, 如 下单/转账/充值"},
                   "amount": {"type": "number", "description": "金额(元)"},
-                  "to": {"type": "string", "description": "收款方, 如 麦当劳/xxx@example.com"}},
+                  "to": {"type": "string", "description": "收款方, 如 麦当劳/xxx@example.com"},
+                  "agent": {"type": "string", "description": "调用方 Agent 身份 ID(未注册默认拒绝, 建议必填)"}},
                  ["action", "amount", "to"]),
     _tool_schema("spend_status", "查询当前护栏状态: 预算/已花/剩余/拦截统计", {}, []),
     _tool_schema("spend_audit", "最近审计记录(最多 N 条)",
@@ -86,20 +87,23 @@ class SpendGuardMCP:
         action = args.get("action", "?")
         amount = float(args.get("amount", 0))
         to = args.get("to", "?")
+        agent = args.get("agent", "")
         try:
             # 手动走闸门(不依赖装饰器): dry_run/黑名单/频率/预算/确认
-            ok = self.guard._authorize(action, amount, to)
+            ok = self.guard._authorize(action, amount, to, agent)
             if not ok:
                 return {"ok": False, "reason": "审批被拒",
                         "spent": self.guard.spent}
             self.guard._spent += amount
-            self.guard._record(action=action, amount=amount, to=to,
+            if agent:
+                self.guard._agent_spent[agent] = self.guard._agent_spent.get(agent, 0.0) + amount
+            self.guard._record(action=action, amount=amount, to=to, agent=agent,
                                decision="executed", reason="mcp 调用通过",
                                spent_after=self.guard.spent)
             return {"ok": True, "approved": True, "amount": amount, "to": to,
                     "spent": self.guard.spent,
                     "note": "已放行。请在真实支付前调用你的支付接口"}
-        except (DryRunBlocked, BudgetExceeded, NeedsApproval) as e:
+        except (DryRunBlocked, BudgetExceeded, NeedsApproval, UnknownAgent) as e:
             return {"ok": False, "reason": str(e), "spent": self.guard.spent}
 
     # ---------- JSON-RPC 分发 ----------

@@ -25,6 +25,29 @@
 | 🙋 **approval** 人工确认 | 关 | 花钱前必须人点头（console / 回调） |
 | 📜 **audit** 审计 | ✅ 开 | 每次尝试全留痕，导出 JSON 对账 |
 
+## 🔑 身份层（KYA 最小实现，v0.4）
+
+AI 没有法律人格，但必须有“数字身份”。每个 agent 注册专属策略，**未注册默认拒绝**：
+
+```python
+from spendguard import SpendGuard, UnknownAgent
+
+guard = SpendGuard(dry_run=False)
+guard.register_agent("mcd_bot", budget=50, max_amount=30,
+                     blacklist=["测试收款"], whitelist=["麦当劳"],
+                     rate_limit={"window_s": 60, "max_calls": 3})
+
+@guard.protect("下单", agent="mcd_bot")   # 或运行时传 agent=xx
+
+def place_order(amount, to):
+    return call_real_api(amount, to)
+```
+
+- 未注册的 agent 调用 → 直接拒绝（`UnknownAgent`），审计留痕 `blocked_unknown_agent`
+- `allow_unknown: true` 可回落全局策略（不推荐）
+- 每条审计记录带 `agent` 字段：**谁在花、花给谁、用户知不知道**
+- 策略即代码支持 `agents:` 段（YAML），预算/黑名单/频率/审批按 agent 隔离
+
 ## 🚀 快速开始
 
 ```bash

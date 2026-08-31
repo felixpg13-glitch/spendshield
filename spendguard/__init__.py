@@ -22,10 +22,10 @@ AI 时代, 别让 Agent 替你花钱之前没有闸门。
         # ... 真实下单逻辑
         return {"ok": True}
 """
-from .guard import SpendGuard, GuardedError, BudgetExceeded, NeedsApproval, DryRunBlocked, AuditRecord
+from .guard import SpendGuard, GuardedError, BudgetExceeded, NeedsApproval, DryRunBlocked, UnknownAgent, AuditRecord
 
-__version__ = "0.1.0"
+__version__ = "0.4.0"
 __all__ = [
     "SpendGuard", "GuardedError", "BudgetExceeded",
-    "NeedsApproval", "DryRunBlocked", "AuditRecord",
+    "NeedsApproval", "DryRunBlocked", "UnknownAgent", "AuditRecord",
 ]

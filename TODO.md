@@ -28,6 +28,16 @@ AI Agent 付款安全层（99 元事故的产物）。Python 生态 + 血泪故�
 - [ ] 多框架示例(OpenClaw/Claude Code/langchain/autogen) + 文档站 + 规则模板库(电商/API/转账场景)
 - [ ] 审计 Dashboard 可视化 + CLI 查看
 
+## 🔑 身份与意图层(2026-08-31 16:07 行业对照后补, 最高优先级)
+
+> 背景: 行业三层体系(监管 KYA / 平台 APOP·AP2·A2P2 / 技术 Sentinel·Fireblocks·Cloudflare)对照后, 我们现状=技术层拦截+审计子集, 缺身份/意图/密钥三根柱子 → 「闸门」还不是「栅栏」。
+
+- [x] **Agent 身份层(KYA 最小实现, v0.4 完成)**: Agent ID + 策略按 ID 绑定(预算/黑名单/频率/approval 按 agent 分) + 未知默认拒绝 + 审计留痕 agent 字段 —— 记录「谁在花」
+- [ ] **调用签名(身份层 v2)**: 每次调用带 agent 签名的 token, 防伪造身份(当前靠调用方自觉传 agent)
+- [ ] **意图一致性**: 敏感操作(新收款方/大额/白名单外)强制 human-in-the-loop, 复用 approval 闸门(TG/Webhook)——提示注入(15万美元案例)的务实解法
+- [ ] **密钥保险库**: 密钥加密存放, guard 解密注入 + 审计谁用了(Fireblocks 最小版, 防「私钥泄露钱包被掏空」)
+- [ ] **合规报告导出**: 对齐国内《智能体支付应用自律公约》(2026-08 发布) KYA + CRA/EU AI Act——国内 Agent 开发者迟早需要合规工具=变现点
+
 ## 未来布局(02:05 定案)
 1. **标准跟随**: 盯 Google AP2 / Coinbase x402, 标准落地时做「标准兼容的 Python 实现」= 第一个吃螃蟹
 2. **形态演进**: 库 → MCP server → 支付护栏网关/托管版(企业变现, preloop 模式: 开源+Cloud)

@@ -29,3 +29,16 @@ rate_limit:
 
 # 人工确认: None=不需要 / console=终端 / callable
 approval: console
+
+# 🔑 Agent 身份层(KYA 最小实现): 每个 agent 独立策略, 未注册默认拒绝
+allow_unknown: false
+agents:
+  mcd_bot:               # 麦当当自动下单 agent
+    budget: 50
+    max_amount: 30
+    blacklist: [测试收款, 未知供应商]
+    whitelist: [麦当劳]
+    rate_limit: {window_s: 60, max_calls: 3}
+  airguard_repair:       # AirGuard AI 修复 agent
+    budget: 10
+    approval: tg
