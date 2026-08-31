@@ -97,6 +97,7 @@ class SpendGuardMCP:
             self.guard._spent += amount
             if agent:
                 self.guard._agent_spent[agent] = self.guard._agent_spent.get(agent, 0.0) + amount
+            self.guard._known_recipients.add(to.lower())
             self.guard._record(action=action, amount=amount, to=to, agent=agent,
                                decision="executed", reason="mcp 调用通过",
                                spent_after=self.guard.spent)

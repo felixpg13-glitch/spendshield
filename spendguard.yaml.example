@@ -30,6 +30,10 @@ rate_limit:
 # 人工确认: None=不需要 / console=终端 / callable
 approval: console
 
+# 意图一致性(防提示注入): 敏感操作强制审批
+approve_new_recipient: true   # 新收款方首次交易强制确认(需配置 approval, 否则默认拒绝)
+approve_above: 0              # 超过该金额强制确认(0 = 不限)
+
 # 🔑 Agent 身份层(KYA 最小实现): 每个 agent 独立策略, 未注册默认拒绝
 allow_unknown: false
 agents:

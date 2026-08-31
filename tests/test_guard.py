@@ -23,7 +23,7 @@ def test_dry_run():
 
 
 def test_budget():
-    guard = SpendGuard(dry_run=False, budget=100)
+    guard = SpendGuard(dry_run=False, budget=100, approve_new_recipient=False)
     @guard.protect("下单")
     def place_order(amount, to):
         return "OK"
@@ -79,7 +79,7 @@ def test_approval_allow_and_audit():
 
 
 def test_failed_execution_no_charge():
-    guard = SpendGuard(dry_run=False)
+    guard = SpendGuard(dry_run=False, approve_new_recipient=False)
     @guard.protect("下单")
     def place_order(amount, to):
         raise RuntimeError("上游失败")
@@ -131,7 +131,8 @@ def test_whitelist_skips_approval():
 
 def test_rate_limit():
     """同收款方频率限制"""
-    guard = SpendGuard(dry_run=False, rate_limit={"window_s": 60, "max_calls": 2})
+    guard = SpendGuard(dry_run=False, rate_limit={"window_s": 60, "max_calls": 2},
+                       approve_new_recipient=False)
     @guard.protect("下单")
     def place_order(amount, to):
         return "OK"
@@ -234,7 +235,7 @@ def test_webhook_approval_deny():
 
 def test_agent_identity():
     """Agent 身份: 注册后放行, 审计带 agent 字段, 按 agent 记已花"""
-    guard = SpendGuard(dry_run=False, budget=1000)
+    guard = SpendGuard(dry_run=False, budget=1000, approve_new_recipient=False)
     guard.register_agent("mcd_bot", budget=100)
     @guard.protect("下单", agent="mcd_bot")
     def place_order(amount, to):
@@ -265,7 +266,8 @@ def test_unknown_agent_rejected():
 
 def test_allow_unknown_fallback():
     """allow_unknown=True 回落全局策略"""
-    guard = SpendGuard(dry_run=False, budget=100, allow_unknown=True)
+    guard = SpendGuard(dry_run=False, budget=100, allow_unknown=True,
+                       approve_new_recipient=False)
     @guard.protect("下单")
     def place_order(amount, to):
         return "OK"
@@ -276,7 +278,7 @@ def test_allow_unknown_fallback():
 
 def test_agent_budget_isolation():
     """agent 级预算隔离: A 花完不影响 B"""
-    guard = SpendGuard(dry_run=False, budget=1000)
+    guard = SpendGuard(dry_run=False, budget=1000, approve_new_recipient=False)
     guard.register_agent("A", budget=50)
     guard.register_agent("B", budget=50)
     @guard.protect("下单")
@@ -296,7 +298,7 @@ def test_agent_budget_isolation():
 
 def test_agent_blacklist_and_rate():
     """agent 级黑名单只拦该 agent; 频率限制按 agent+收款方"""
-    guard = SpendGuard(dry_run=False, budget=1000)
+    guard = SpendGuard(dry_run=False, budget=1000, approve_new_recipient=False)
     guard.register_agent("A", blacklist=["骗子"], rate_limit={"window_s": 60, "max_calls": 2})
     @guard.protect("转账")
     def transfer(amount, to, agent=""):
@@ -332,3 +334,71 @@ def test_policy_agents_yaml():
     assert "麦当劳" in guard._agents["mcd_bot"]["whitelist"]
     assert guard._agents["airguard_repair"]["approval"] == "tg"
     print("✅ policy agents: YAML 身份策略加载成功")
+
+
+# ============ 🎯 意图一致性(提示注入解法) ============
+
+def test_intent_new_recipient_denied_no_channel():
+    """新收款方 + 未配置审批通道 → 直接拒绝(安全默认, 防提示注入)"""
+    guard = SpendGuard(dry_run=False, approve_new_recipient=True)
+    @guard.protect("转账")
+    def transfer(amount, to):
+        return "OK"
+    try:
+        transfer(amount=10, to="陌生收款方")
+        assert False, "新收款方无审批通道应默认拒绝"
+    except NeedsApproval:
+        pass
+    assert guard.spent == 0
+    assert guard.records[-1].decision == "blocked_approval"
+    assert "未配置审批通道" in guard.records[-1].reason
+    print("✅ intent: 新收款方无审批通道 → 默认拒绝")
+
+
+def test_intent_known_recipient_allowed():
+    """交易成功的收款方进入记忆, 之后不再强制审批; 新收款方仍拒绝"""
+    guard = SpendGuard(dry_run=False, approval=lambda rec: True, approve_new_recipient=True)
+    @guard.protect("转账")
+    def transfer(amount, to):
+        return "OK"
+    transfer(amount=10, to="老客户")   # 第一次: 审批通过 + 登记 known
+    guard.approval = None              # 关掉全局审批
+    transfer(amount=20, to="老客户")   # 已知收款方 → 不敏感 → 放行
+    try:
+        transfer(amount=5, to="新客户")  # 新收款方 → 无通道 → 拒绝
+        assert False
+    except NeedsApproval:
+        pass
+    assert guard.spent == 30.0
+    print("✅ intent: 已知收款方免审批(记忆生效), 新收款方仍拒")
+
+
+def test_intent_approve_above():
+    """大额触发强制审批, 小额不触发"""
+    guard = SpendGuard(dry_run=False, approve_above=100, approve_new_recipient=False)
+    @guard.protect("转账")
+    def transfer(amount, to):
+        return "OK"
+    transfer(amount=50, to="普通商家")   # 低于阈值 → 放行
+    assert guard.spent == 50.0
+    try:
+        transfer(amount=150, to="普通商家")  # 超过阈值 → 无通道 → 拒绝
+        assert False
+    except NeedsApproval:
+        pass
+    assert guard.spent == 50.0
+    print("✅ intent: 大额阈值触发强制审批")
+
+
+def test_intent_with_approval_channel():
+    """配置审批通道时, 新收款方走审批流程(可放行); 白名单跳过"""
+    guard = SpendGuard(dry_run=False, approval=lambda rec: True,
+                       approve_new_recipient=True, whitelist=["麦当劳"])
+    @guard.protect("转账")
+    def transfer(amount, to):
+        return "OK"
+    transfer(amount=10, to="新商家")     # 新收款方 → 走审批(通过) → 放行
+    assert guard.spent == 10.0
+    transfer(amount=10, to="麦当劳官方")  # 白名单 → 跳过审批
+    assert guard.spent == 20.0
+    print("✅ intent: 有审批通道时新收款方走审批, 白名单跳过")

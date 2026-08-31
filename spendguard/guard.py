@@ -78,6 +78,8 @@ class SpendGuard:
         webhook_url: str = "",                 # 远程审批: Webhook URL
         agents: Optional[dict] = None,         # Agent 身份层: {agent_id: {budget/max_amount/blacklist/...}}
         allow_unknown: bool = False,           # 未注册 agent 是否回落全局策略(安全默认拒绝)
+        approve_new_recipient: bool = True,    # 意图一致性: 新收款方首次交易强制审批(防提示注入); 未配置审批通道则默认拒绝
+        approve_above: float = 0.0,            # 意图一致性: 超过该金额的转账强制审批(0 = 不限)
     ):
         self.budget = budget
         self.dry_run = dry_run
@@ -98,6 +100,9 @@ class SpendGuard:
         self._agents: dict[str, dict] = {}
         self._agent_spent: dict[str, float] = {}
         self.allow_unknown = allow_unknown
+        self.approve_new_recipient = approve_new_recipient
+        self.approve_above = approve_above
+        self._known_recipients: set[str] = set()   # 成功交易过的收款方(意图一致性记忆)
         for aid, aconf in (agents or {}).items():
             self.register_agent(aid, **{k: v for k, v in aconf.items()
                                         if k in ("budget", "max_amount", "blacklist",
@@ -191,20 +196,45 @@ class SpendGuard:
                 self.on_block(rec)
             raise BudgetExceeded(f"[预算] {action} ¥{amount} 超支: 已花 ¥{self._spent:.2f}, 总预算 ¥{self.budget:.2f}")
 
-        # 2.5 白名单: 跳过人工确认
-        if any(w in to_l for w in wl):
-            pass
-        # 3. 人工确认
-        elif appr is not None:
-            ok = self._ask(action, amount, to, agent)
-            if not ok:
-                rec = self._record(action=action, amount=amount, to=to, agent=agent,
-                                   decision="blocked_approval", reason="人工确认被拒",
-                                   spent_after=self._spent)
-                self.log(rec)
-                if self.on_block:
-                    self.on_block(rec)
-                raise NeedsApproval(f"[确认] {action} ¥{amount} -> {to} 未获批准")
+        # 2.5/3 审批: 白名单跳过; 否则:
+        #   - 意图一致性(防提示注入): 敏感操作(新收款方/大额)强制审批; 未配置审批通道 → 直接拒绝(安全默认)
+        #   - 全局 approval 配置: 每笔都问(强模式)
+        if not any(w in to_l for w in wl):
+            sensitive = False
+            sensitive_reason = ""
+            if self.approve_new_recipient and to_l not in self._known_recipients:
+                sensitive, sensitive_reason = True, f"新收款方需确认: {to}"
+            elif self.approve_above > 0 and amount > self.approve_above:
+                sensitive, sensitive_reason = True, f"金额 ¥{amount:.2f} > 敏感阈值 ¥{self.approve_above:.2f}, 需确认"
+            if sensitive:
+                if appr is None:
+                    rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                                       decision="blocked_approval",
+                                       reason=sensitive_reason + ", 未配置审批通道, 安全默认拒绝",
+                                       spent_after=self._spent)
+                    self.log(rec)
+                    if self.on_block:
+                        self.on_block(rec)
+                    raise NeedsApproval(f"[确认] {action} ¥{amount} -> {to} 未获批准({sensitive_reason}, 未配置审批通道)")
+                ok = self._ask(action, amount, to, agent)
+                if not ok:
+                    rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                                       decision="blocked_approval", reason=sensitive_reason + ", 审批被拒",
+                                       spent_after=self._spent)
+                    self.log(rec)
+                    if self.on_block:
+                        self.on_block(rec)
+                    raise NeedsApproval(f"[确认] {action} ¥{amount} -> {to} 未获批准({sensitive_reason})")
+            elif appr is not None:
+                ok = self._ask(action, amount, to, agent)
+                if not ok:
+                    rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                                       decision="blocked_approval", reason="人工确认被拒",
+                                       spent_after=self._spent)
+                    self.log(rec)
+                    if self.on_block:
+                        self.on_block(rec)
+                    raise NeedsApproval(f"[确认] {action} ¥{amount} -> {to} 未获批准")
         return self._record(action=action, amount=amount, to=to, agent=agent,
                             decision="executed", reason="", spent_after=self._spent)
 
@@ -308,6 +338,7 @@ class SpendGuard:
                 self._spent += amount
                 if ag:
                     self._agent_spent[ag] = self._agent_spent.get(ag, 0.0) + amount
+                self._known_recipients.add(to.lower())   # 交易成功 → 记为已知收款方
                 rec.spent_after = self._spent
                 self.log(rec)
                 return result
@@ -377,6 +408,10 @@ class SpendGuard:
             self.webhook_url = cfg["webhook_url"]
         if cfg.get("allow_unknown") is not None:
             self.allow_unknown = bool(cfg["allow_unknown"])
+        if cfg.get("approve_new_recipient") is not None:
+            self.approve_new_recipient = bool(cfg["approve_new_recipient"])
+        if cfg.get("approve_above") is not None:
+            self.approve_above = float(cfg["approve_above"])
         for aid, aconf in (cfg.get("agents") or {}).items():
             self.register_agent(aid, **{k: v for k, v in aconf.items()
                                         if k in ("budget", "max_amount", "blacklist",
@@ -415,6 +450,7 @@ class SpendGuard:
             "records": len(self.records),
             "blocked": sum(1 for r in self.records if r.decision.startswith("blocked") or r.decision == "dry_run"),
             "executed": sum(1 for r in self.records if r.decision == "executed"),
+            "known_recipients": len(self._known_recipients),
             "agents": agents,
         }
 
