@@ -1,2 +1,0 @@
-[console_scripts]
-spendguard-mcp = spendguard.mcp_server:main

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "spendshield"
-version = "0.6.0"
-description = "AI Agent 付款安全层: 干跑/预算/人工确认/审计 四道闸门"
+version = "0.6.1"
+description = "AI Agent 付款安全层: 身份/意图/密钥 三道信任支柱 + 四道闸门。给 AI 定义带消费上限的数字身份, 防提示注入, 密钥不落盘。Python + MCP"
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
