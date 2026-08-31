@@ -16,6 +16,11 @@
 | `approval` | null/console/tg/webhook | 人工确认模式 |
 | `tg.token` / `tg.chat` | str | TG 远程审批配置 |
 | `webhook_url` | str | Webhook 审批地址 |
+| `allow_unknown` | bool | 未注册 Agent 是否回落全局策略(默认 false = 拒绝) |
+| `agents` | dict | 按 Agent 分策略: {id: {budget/max_amount/blacklist/whitelist/rate_limit/approval}} |
+| `approve_new_recipient` | bool | 意图一致性: 新收款方强制审批(默认 true) |
+| `approve_above` | number | 意图一致性: 超此金额强制审批(0=不限) |
+| `vault.path` / `vault.master_key_env` | str | 密钥保险库: 文件路径 + 主密钥环境变量名 |
 
 ## 审批模式
 
@@ -28,4 +33,7 @@
 ## 安全默认
 
 - 未知审批模式 = 拒绝(安全默认)
+- 未注册 Agent = 拒绝(UnknownAgent)
+- 新收款方/大额无审批通道 = 拒绝(意图一致性)
+- 主密钥不落盘; 取密钥过闸门
 - 拦截全部留痕审计

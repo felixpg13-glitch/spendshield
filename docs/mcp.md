@@ -13,10 +13,11 @@ python -m spendguard.mcp_server --policy spendguard.yaml
 
 | 工具 | 参数 | 说明 |
 |------|------|------|
-| `spend_protect` | action, amount, to | 保护一次花钱操作(走全部闸门) |
-| `spend_status` | — | 预算/已花/拦截统计 |
-| `spend_audit` | limit | 最近审计记录 |
+| `spend_protect` | action, amount, to, agent | 保护一次花钱操作(走全部闸门, 带 Agent 身份) |
+| `spend_status` | — | 预算/已花/拦截统计(含按 Agent) |
+| `spend_audit` | limit | 最近审计记录(含谁在花) |
 | `spend_reset` | — | 重置会话已花 |
+| `secret_get` | name, agent | 从密钥保险库取密钥(过闸门 + 审计) |
 
 ## Claude Code 配置
 

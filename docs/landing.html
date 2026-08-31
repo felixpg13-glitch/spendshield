@@ -33,14 +33,16 @@ nav .links a:hover{color:var(--ink)}
 .label{font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:20px}
 .statement h2{font-size:32px;font-weight:500;letter-spacing:-.8px;line-height:1.35;max-width:720px}
 .statement h2 em{font-style:normal;color:var(--accent);font-weight:600}
-.gates{padding:60px 0;border-top:1px solid var(--line)}
-.gates .label{margin-bottom:34px}
+.pillars{padding:60px 0;border-top:1px solid var(--line)}
+.pillars .label{margin-bottom:34px}
 .flow{display:flex;align-items:stretch;gap:0}
 .flow .step{flex:1;padding:0 18px;position:relative}
 .flow .step:not(:last-child)::after{content:'';position:absolute;top:22px;right:-2px;width:4px;height:1px;background:var(--line)}
 .flow .step .n{width:44px;height:44px;border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Menlo,monospace;font-size:14px;margin-bottom:16px;background:#fff}
 .flow .step h3{font-size:14px;font-weight:600;margin-bottom:6px}
 .flow .step p{font-size:12px;color:var(--muted);line-height:1.6}
+.gates{padding:60px 0;border-top:1px solid var(--line)}
+.gates .label{margin-bottom:34px}
 .features{padding:20px 0 40px;border-top:1px solid var(--line)}
 .f-row{display:flex;align-items:baseline;gap:24px;padding:22px 0;border-bottom:1px solid var(--line)}
 .f-row .name{font-size:15px;font-weight:600;min-width:180px}
@@ -68,6 +70,7 @@ footer a:hover{color:var(--ink)}
     SpendGuard
   </div>
   <div class="links">
+    <a href="#pillars" data-i18n="nav_pillars">Pillars</a>
     <a href="#gates" data-i18n="nav_gates">Guardrails</a>
     <a href="#code" data-i18n="nav_quick">Quick start</a>
     <a href="https://github.com/felixpg13-glitch/spendguard">GitHub</a>
@@ -76,9 +79,9 @@ footer a:hover{color:var(--ink)}
 </nav>
 
 <div class="hero">
-  <div class="badge"><span class="dot"></span><span data-i18n="badge">AI Agent 付款护栏 · 开源 · Python + MCP</span></div>
+  <div class="badge"><span class="dot"></span><span data-i18n="badge">AI Agent 付款护栏 · 身份 · 意图 · 密钥 · Python + MCP</span></div>
   <h1 data-i18n="h1">AI 开始花真钱了，<br><span class="thin" style="font-weight:300;color:var(--muted)">谁给它上闸门？</span></h1>
-  <p data-i18n="hero_sub">当 AI Agent 开始下单、转账、调付费 API——谁给它上闸门？SpendGuard 在「钱该不该动」和「钱怎么动」之间，加一道确定性护栏。</p>
+  <p data-i18n="hero_sub">AI 没有法律人格，但它必须有数字身份。SpendGuard 给每个 Agent 定义带消费上限的身份，在「钱该不该动」和「钱怎么动」之间，加一道确定性护栏。</p>
   <div class="cta">
     <a class="btn black" href="https://github.com/felixpg13-glitch/spendguard"><span data-i18n="cta_start">开始使用</span> <span class="arrow">→</span></a>
     <a class="btn ghost" href="#code"><span data-i18n="cta_code">查看代码</span></a>
@@ -90,8 +93,17 @@ footer a:hover{color:var(--ink)}
   <h2 data-i18n="statement_title">决策由代码，<em>而非 AI 的意见。</em><br>规则是确定性的——Agent 无法争辩、欺骗或注入绕过它们。</h2>
 </div>
 
+<div class="pillars" id="pillars">
+  <div class="label" data-i18n="pillars_label">信任三支柱 · 从「闸门」到「栅栏」</div>
+  <div class="flow">
+    <div class="step"><div class="n">01</div><h3 data-i18n="p1">身份</h3><p data-i18n="p1d">每个 Agent 注册数字身份（KYA），预算/黑名单按身份隔离。未注册默认拒绝。</p></div>
+    <div class="step"><div class="n">02</div><h3 data-i18n="p2">意图</h3><p data-i18n="p2d">新收款方、大额转账强制人工确认——防提示注入劫持 Agent 偷花钱。</p></div>
+    <div class="step"><div class="n">03</div><h3 data-i18n="p3">密钥</h3><p data-i18n="p3d">私钥加密落盘，主密钥不落盘。取密钥必须过闸门，每次取用留审计。</p></div>
+  </div>
+</div>
+
 <div class="gates" id="gates">
-  <div class="label" data-i18n="gates_label">四道闸门 · 每次花钱全部通过</div>
+  <div class="label" data-i18n="gates_label">执行层 · 四道闸门 · 每次花钱全部通过</div>
   <div class="flow">
     <div class="step"><div class="n">01</div><h3 data-i18n="g1">干跑</h3><p data-i18n="g1d">只预览不执行，直到你放行。</p></div>
     <div class="step"><div class="n">02</div><h3 data-i18n="g2">预算</h3><p data-i18n="g2d">硬上限。超支即拒绝。</p></div>
@@ -101,24 +113,30 @@ footer a:hover{color:var(--ink)}
 </div>
 
 <div class="features">
+  <div class="f-row"><span class="name" data-i18n="f7n">Agent 身份层</span><span class="desc" data-i18n="f7d">Spend-Capped Identity：给 AI 定义带消费上限的数字身份，KYA 最小实现。</span><span class="tag">v0.4</span></div>
+  <div class="f-row"><span class="name" data-i18n="f8n">意图一致性</span><span class="desc" data-i18n="f8d">新收款方/大额强制审批；交易记忆免反复确认。未配审批通道默认拒绝。</span><span class="tag">v0.5</span></div>
+  <div class="f-row"><span class="name" data-i18n="f9n">密钥保险库</span><span class="desc" data-i18n="f9d">AES 加密落盘，主密钥环境变量持有。取密钥过闸门 + 审计留痕。</span><span class="tag">v0.6</span></div>
   <div class="f-row"><span class="name" data-i18n="f1n">黑名单 / 白名单</span><span class="desc" data-i18n="f1d">黑名单收款方直接拒绝，白名单信任方跳过确认。</span><span class="tag">v0.2</span></div>
-  <div class="f-row"><span class="name" data-i18n="f2n">频率限制</span><span class="desc" data-i18n="f2d">同一收款方窗口内最多 N 次——防轰炸式扣款。</span><span class="tag">v0.2</span></div>
-  <div class="f-row"><span class="name" data-i18n="f3n">策略即代码</span><span class="desc" data-i18n="f3d">所有规则在一个 YAML 文件。可版本化、可评审、可部署。</span><span class="tag">v0.2</span></div>
-  <div class="f-row"><span class="name" data-i18n="f4n">MCP Server</span><span class="desc" data-i18n="f4d">Claude Code / OpenClaw 等 MCP 兼容 agent 直接调用护栏。</span><span class="tag">v0.2</span></div>
+  <div class="f-row"><span class="name" data-i18n="f3n">策略即代码</span><span class="desc" data-i18n="f3d">所有规则（含按 Agent 分）在一个 YAML。可版本化、可评审、可部署。</span><span class="tag">v0.2</span></div>
+  <div class="f-row"><span class="name" data-i18n="f4n">MCP Server</span><span class="desc" data-i18n="f4d">Claude Code / OpenClaw 等 MCP 兼容 agent 直接调用护栏与密钥。</span><span class="tag">v0.2</span></div>
   <div class="f-row"><span class="name" data-i18n="f5n">远程审批</span><span class="desc" data-i18n="f5d">Telegram 或 Webhook 审批——无需终端。</span><span class="tag">v0.3</span></div>
-  <div class="f-row"><span class="name" data-i18n="f6n">审计留痕</span><span class="desc" data-i18n="f6d">每次尝试全记录。导出 JSON，看板可视化。</span><span class="tag">v0.3</span></div>
+  <div class="f-row"><span class="name" data-i18n="f6n">审计留痕</span><span class="desc" data-i18n="f6d">每次尝试全记录（含谁在花、取了哪个密钥）。导出 JSON，看板可视化。</span><span class="tag">v0.3</span></div>
 </div>
 
 <div class="code-wrap" id="code">
   <div class="label" data-i18n="code_label">快速开始</div>
-  <div class="code"><span class="cmt"># 包住你的花钱函数</span><br>
-<span class="kw">from</span> spendguard <span class="kw">import</span> SpendGuard<br><br>
-guard = SpendGuard(<span class="kw">budget</span>=200, <span class="kw">policy</span>=<span class="kw">"spendguard.yaml"</span>)<br><br>
-@guard.protect(<span class="kw">"下单"</span>)<br>
+  <div class="code"><span class="cmt"># 1. 给 Agent 注册身份 + 专属策略（KYA）</span><br>
+<span class="kw">from</span> spendguard <span class="kw">import</span> SpendGuard, KeyVault<br><br>
+guard = SpendGuard(<span class="kw">budget</span>=200)<br>
+guard.register_agent(<span class="kw">"mcd_bot"</span>, <span class="kw">budget</span>=50, <span class="kw">whitelist</span>=[<span class="kw">"麦当劳"</span>])<br><br>
+<span class="cmt"># 2. 密钥进保险库（主密钥在环境变量, 不落盘）</span><br>
+vault = KeyVault(<span class="kw">"vault.json"</span>)<br>
+vault.store(<span class="kw">"mcd_sk"</span>, <span class="kw">"sk_live_xxx"</span>)<br>
+guard = SpendGuard(<span class="kw">key_vault</span>=vault)<br><br>
+<span class="cmt"># 3. 包住花钱函数: 过闸门 + 记身份</span><br>
+@guard.protect(<span class="kw">"下单"</span>, <span class="kw">agent</span>=<span class="kw">"mcd_bot"</span>)<br>
 <span class="kw">def</span> place_order(amount, to):<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> call_api(amount, to)<br><br>
-<span class="cmt"># 默认干跑: 报错提示, 绝不真花</span><br>
-place_order(amount=<span class="kw">99</span>, to=<span class="kw">"麦当劳"</span>)  <span class="cmt"># => DryRunBlocked</span></div>
+&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> call_api(amount, to)  <span class="cmt"># 默认干跑, 绝不真花</span></div>
 </div>
 
 <div class="final">
@@ -129,12 +147,12 @@ place_order(amount=<span class="kw">99</span>, to=<span class="kw">"麦当劳"</
 
 <footer>
   <span>SpendGuard · MIT · 2026 · <span data-i18n="footer_t">AI 付款安全层</span></span>
-  <span><a href="https://github.com/felixpg13-glitch/spendguard">GitHub</a><a href="#gates" data-i18n="nav_gates">Guardrails</a></span>
+  <span><a href="https://github.com/felixpg13-glitch/spendguard">GitHub</a><a href="#pillars" data-i18n="nav_pillars">Pillars</a></span>
 </footer>
 </div>
 
 <script>
-const I18N = {"nav_gates":{"zh":"Guardrails","en":"Guardrails"},"nav_quick":{"zh":"快速开始","en":"Quick start"},"badge":{"zh":"AI Agent 付款护栏 · 开源 · Python + MCP","en":"AI payment guardrails · Open source · Python + MCP"},"h1":{"zh":"AI 开始花真钱了，<br><span class=\"thin\" style=\"font-weight:300;color:var(--muted)\">谁给它上闸门？</span>","en":"AI spends money.<br><span class=\"thin\" style=\"font-weight:300;color:var(--muted)\">Decide whether it should.</span>"},"hero_sub":{"zh":"当 AI Agent 开始下单、转账、调付费 API——谁给它上闸门？SpendGuard 在「钱该不该动」和「钱怎么动」之间，加一道确定性护栏。","en":"Agents are getting wallets. SpendGuard sits between your agent and your money — every transaction passes four deterministic gates before it can execute."},"cta_start":{"zh":"开始使用","en":"Get started"},"cta_code":{"zh":"查看代码","en":"View code"},"statement_label":{"zh":"原则","en":"The principle"},"statement_title":{"zh":"决策由代码，<em>而非 AI 的意见。</em><br>规则是确定性的——Agent 无法争辩、欺骗或注入绕过它们。","en":"Decisions by code, <em>never by AI opinion.</em><br>Rules are deterministic. Agents cannot argue, trick, or inject their way past them."},"gates_label":{"zh":"四道闸门 · 每次花钱全部通过","en":"Four gates · every spend passes all of them"},"g1":{"zh":"干跑","en":"Dry run"},"g1d":{"zh":"只预览不执行，直到你放行。","en":"Preview only. Nothing executes until you say so."},"g2":{"zh":"预算","en":"Budget"},"g2d":{"zh":"硬上限。超支即拒绝。","en":"Hard ceiling. Over budget means denied."},"g3":{"zh":"限额","en":"Limits"},"g3d":{"zh":"单次上限 + 收款方频率限制。","en":"Per-transaction cap & recipient rate limiting."},"g4":{"zh":"审批","en":"Approval"},"g4d":{"zh":"人工确认——终端 / Telegram / Webhook。","en":"Human sign-off — console, Telegram, or webhook."},"f1n":{"zh":"黑名单 / 白名单","en":"Blacklist / Whitelist"},"f1d":{"zh":"黑名单收款方直接拒绝，白名单信任方跳过确认。","en":"Block known-bad recipients outright. Trusted ones skip approval."},"f2n":{"zh":"频率限制","en":"Rate limiting"},"f2d":{"zh":"同一收款方窗口内最多 N 次——防轰炸式扣款。","en":"Max N transactions to the same recipient per window."},"f3n":{"zh":"策略即代码","en":"Policy as code"},"f3d":{"zh":"所有规则在一个 YAML 文件。可版本化、可评审、可部署。","en":"All rules in one YAML file. Version it, review it, deploy it."},"f4n":{"zh":"MCP Server","en":"MCP server"},"f4d":{"zh":"Claude Code / OpenClaw 等 MCP 兼容 agent 直接调用护栏。","en":"Claude Code, OpenClaw and any MCP agent calls the guard directly."},"f5n":{"zh":"远程审批","en":"Remote approval"},"f5d":{"zh":"Telegram 或 Webhook 审批——无需终端。","en":"Approve on Telegram or via webhook — no terminal required."},"f6n":{"zh":"审计留痕","en":"Audit trail"},"f6d":{"zh":"每次尝试全记录。导出 JSON，看板可视化。","en":"Every attempt recorded. Export JSON, visualize on the dashboard."},"code_label":{"zh":"快速开始","en":"Quick start"},"final_h":{"zh":"当 AI 拿着信用卡，<br>规则必须握得更紧。","en":"When AI holds the card,<br>make sure the rules hold too."},"final_p":{"zh":"MIT 开源。在 GitHub 上点个星。","en":"MIT licensed. Star it on GitHub."},"footer_t":{"zh":"AI 付款安全层","en":"AI Payment Safety Layer"}};
+const I18N = {"nav_pillars":{"zh":"支柱","en":"Pillars"},"nav_gates":{"zh":"闸门","en":"Guardrails"},"nav_quick":{"zh":"快速开始","en":"Quick start"},"badge":{"zh":"AI Agent 付款护栏 · 身份 · 意图 · 密钥 · Python + MCP","en":"AI payment guardrails · Identity · Intent · Keys · Python + MCP"},"h1":{"zh":"AI 开始花真钱了，<br><span class=\"thin\" style=\"font-weight:300;color:var(--muted)\">谁给它上闸门？</span>","en":"AI spends money.<br><span class=\"thin\" style=\"font-weight:300;color:var(--muted)\">Decide whether it should.</span>"},"hero_sub":{"zh":"AI 没有法律人格，但它必须有数字身份。SpendGuard 给每个 Agent 定义带消费上限的身份，在「钱该不该动」和「钱怎么动」之间，加一道确定性护栏。","en":"AI has no legal personhood, but it must have a digital identity. SpendGuard gives every agent a spend-capped identity, and puts a deterministic guardrail between intent and money."},"cta_start":{"zh":"开始使用","en":"Get started"},"cta_code":{"zh":"查看代码","en":"View code"},"statement_label":{"zh":"原则","en":"The principle"},"statement_title":{"zh":"决策由代码，<em>而非 AI 的意见。</em><br>规则是确定性的——Agent 无法争辩、欺骗或注入绕过它们。","en":"Decisions by code, <em>never by AI opinion.</em><br>Rules are deterministic. Agents cannot argue, trick, or inject their way past them."},"pillars_label":{"zh":"信任三支柱 · 从「闸门」到「栅栏」","en":"Three trust pillars · from gate to fence"},"p1":{"zh":"身份","en":"Identity"},"p1d":{"zh":"每个 Agent 注册数字身份（KYA），预算/黑名单按身份隔离。未注册默认拒绝。","en":"Every agent gets a digital identity (KYA). Budgets and blacklists are per-identity. Unregistered = denied."},"p2":{"zh":"意图","en":"Intent"},"p2d":{"zh":"新收款方、大额转账强制人工确认——防提示注入劫持 Agent 偷花钱。","en":"New recipients and large transfers require human sign-off — stops prompt-injected agents from spending without you."},"p3":{"zh":"密钥","en":"Keys"},"p3d":{"zh":"私钥加密落盘，主密钥不落盘。取密钥必须过闸门，每次取用留审计。","en":"Secrets encrypted at rest, master key never on disk. Access requires passing the gates; every access is audited."},"gates_label":{"zh":"执行层 · 四道闸门 · 每次花钱全部通过","en":"Execution · four gates · every spend passes all of them"},"g1":{"zh":"干跑","en":"Dry run"},"g1d":{"zh":"只预览不执行，直到你放行。","en":"Preview only. Nothing executes until you say so."},"g2":{"zh":"预算","en":"Budget"},"g2d":{"zh":"硬上限。超支即拒绝。","en":"Hard ceiling. Over budget means denied."},"g3":{"zh":"限额","en":"Limits"},"g3d":{"zh":"单次上限 + 收款方频率限制。","en":"Per-transaction cap & recipient rate limiting."},"g4":{"zh":"审批","en":"Approval"},"g4d":{"zh":"人工确认——终端 / Telegram / Webhook。","en":"Human sign-off — console, Telegram, or webhook."},"f7n":{"zh":"Agent 身份层","en":"Agent identity"},"f7d":{"zh":"Spend-Capped Identity：给 AI 定义带消费上限的数字身份，KYA 最小实现。","en":"Spend-Capped Identity: digital identity with a spending cap. A minimal KYA implementation."},"f8n":{"zh":"意图一致性","en":"Intent alignment"},"f8d":{"zh":"新收款方/大额强制审批；交易记忆免反复确认。未配审批通道默认拒绝。","en":"New recipients & large amounts force approval; a transaction memory stops repeat prompts. Deny by default without an approval channel."},"f9n":{"zh":"密钥保险库","en":"Secret vault"},"f9d":{"zh":"AES 加密落盘，主密钥环境变量持有。取密钥过闸门 + 审计留痕。","en":"AES-encrypted at rest, master key in env. Key access passes the gates and is audited."},"f1n":{"zh":"黑名单 / 白名单","en":"Blacklist / Whitelist"},"f1d":{"zh":"黑名单收款方直接拒绝，白名单信任方跳过确认。","en":"Block known-bad recipients outright. Trusted ones skip approval."},"f3n":{"zh":"策略即代码","en":"Policy as code"},"f3d":{"zh":"所有规则（含按 Agent 分）在一个 YAML。可版本化、可评审、可部署。","en":"All rules, including per-agent ones, in one YAML. Version it, review it, deploy it."},"f4n":{"zh":"MCP Server","en":"MCP server"},"f4d":{"zh":"Claude Code / OpenClaw 等 MCP 兼容 agent 直接调用护栏与密钥。","en":"Claude Code, OpenClaw and any MCP agent calls the guard and vault directly."},"f5n":{"zh":"远程审批","en":"Remote approval"},"f5d":{"zh":"Telegram 或 Webhook 审批——无需终端。","en":"Approve on Telegram or via webhook — no terminal required."},"f6n":{"zh":"审计留痕","en":"Audit trail"},"f6d":{"zh":"每次尝试全记录（含谁在花、取了哪个密钥）。导出 JSON，看板可视化。","en":"Every attempt recorded — who spent, which key was accessed. Export JSON, visualize on the dashboard."},"code_label":{"zh":"快速开始","en":"Quick start"},"final_h":{"zh":"当 AI 拿着信用卡，<br>规则必须握得更紧。","en":"When AI holds the card,<br>make sure the rules hold too."},"final_p":{"zh":"MIT 开源。在 GitHub 上点个星。","en":"MIT licensed. Star it on GitHub."},"footer_t":{"zh":"AI 付款安全层","en":"AI Payment Safety Layer"}};
 let LANG = 'zh';
 const saved = localStorage.getItem('sg-lang');
 if(saved === 'en' || saved === 'zh') LANG = saved;
