@@ -78,6 +78,20 @@ nav .links a:hover{color:var(--ink)}
 .code{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:24px 28px;font-family:Menlo,Consolas,monospace;font-size:13px;line-height:1.9;overflow-x:auto}
 .code .cmt{color:#9ca3af}
 .code .kw{color:var(--accent)}
+/* ===== About SEO 区块 ===== */
+.about-seo { border-top:1px solid var(--line); padding:64px 0; }
+.about-grid { display:flex; gap:56px; align-items:flex-start; }
+.about-left { flex:1.5; }
+.about-left .label { margin-bottom:16px; }
+.about-left p { font-size:13px; color:var(--muted); line-height:2; max-width:560px; }
+.about-left p a { color:var(--accent); text-decoration:none; border-bottom:1px solid transparent; }
+.about-left p a:hover { border-bottom-color:var(--accent); }
+.about-right { flex:1; display:flex; flex-wrap:wrap; gap:8px; padding-top:30px; }
+.about-right .chip {
+  font-family:Menlo,Consolas,monospace; font-size:11px; color:var(--accent);
+  border:1px solid var(--line); border-radius:100px; padding:6px 14px; background:#fff;
+}
+.about-right .chip.ghost { color:var(--muted); }
 .final{padding:100px 0;text-align:center}
 .final h2{font-size:28px;font-weight:500;letter-spacing:-.6px;margin-bottom:12px}
 .final p{color:var(--muted);font-size:14px;margin-bottom:30px}
@@ -85,7 +99,6 @@ footer{padding:30px 0;border-top:1px solid var(--line);display:flex;justify-cont
 footer a{color:var(--muted);text-decoration:none;margin-left:20px}
 footer a:hover{color:var(--ink)}
 @media(max-width:820px){
-  body{line-height:1.75}
   nav{padding:20px 0}
   nav .links a{font-size:12px;margin-left:16px}
   .lang-btn{padding:5px 12px;font-size:11px;margin-left:10px}
@@ -115,6 +128,9 @@ footer a:hover{color:var(--ink)}
   .final p{font-size:14px;margin-bottom:32px}
   footer{flex-direction:column;gap:12px;text-align:center}
   footer a{margin:0 10px}
+  .about-seo{padding:48px 0}
+  .about-grid{flex-direction:column;gap:8px}
+  .about-right{padding-top:16px}
 }
 </style>
 </head>
@@ -204,14 +220,24 @@ guard = SpendShield(<span class="kw">key_vault</span>=vault)<br><br>
 <!-- ===== About(SEO 文本 + 产品说明) ===== -->
 <section class="about-seo">
   <div class="wrap" style="max-width:1100px;margin:0 auto;padding:0 28px">
-    <div class="label" style="font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:18px">About SpendShield</div>
-    <p style="font-size:13px;color:var(--muted);line-height:1.9;max-width:860px">
-      SpendShield is an open-source AI payment guardrail for Python and MCP servers. It gives AI agents a
-      spend-capped digital identity (KYA), four deterministic gates — dry-run, budget, per-transaction limit,
-      and human approval — and defends against prompt injection: new recipients and large amounts always require
-      human sign-off. Secrets live in an AES-encrypted vault with audited access. Built for developers who let
-      agents spend real money. <a href="https://github.com/felixpg13-glitch/spendshield" style="color:var(--accent);text-decoration:none">Star on GitHub →</a>
-    </p>
+    <div class="about-grid">
+      <div class="about-left">
+        <div class="label">About SpendShield</div>
+        <p>SpendShield is an open-source AI payment guardrail for Python and MCP servers. It gives AI agents a
+        spend-capped digital identity (KYA), four deterministic gates — dry-run, budget, per-transaction limit,
+        and human approval — and defends against prompt injection: new recipients and large amounts always require
+        human sign-off. Built for developers who let agents spend real money.
+        <a href="https://github.com/felixpg13-glitch/spendshield">Star on GitHub →</a></p>
+      </div>
+      <div class="about-right">
+        <span class="chip">Open Source</span>
+        <span class="chip">Python</span>
+        <span class="chip">MCP Server</span>
+        <span class="chip">KYA Identity</span>
+        <span class="chip">AES-256</span>
+        <span class="chip ghost">MIT License</span>
+      </div>
+    </div>
   </div>
 </section>
 
