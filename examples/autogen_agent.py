@@ -1,9 +1,9 @@
-"""AutoGen Agent 接入 SpendGuard 示例"""
+"""AutoGen Agent 接入 SpendShield 示例"""
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from spendguard import SpendGuard, DryRunBlocked
+from spendshield import SpendShield, DryRunBlocked
 
-guard = SpendGuard(budget=100, dry_run=True)
+guard = SpendShield(budget=100, dry_run=True)
 
 
 def spend_protected(action: str, amount: float, to: str) -> dict:

@@ -1,4 +1,4 @@
-# SpendGuard TODO（2026-08-31 02:03 定: 完善后再发）
+# SpendShield TODO（2026-08-31 02:03 定: 完善后再发）
 
 ## 定位
 AI Agent 付款安全层（99 元事故的产物）。Python 生态 + 血泪故事 = 差异化。
@@ -7,7 +7,7 @@ AI Agent 付款安全层（99 元事故的产物）。Python 生态 + 血泪故�
 ## 现状 v0.1（已就绪）
 - ✅ 四道闸门: dry_run(默认) / budget / max_amount / approval(console/callback) + 全量审计导出
 - ✅ 6 测试全过, demo(99元事故还原), README 故事性, pyproject 可 pip 装
-- 位置: /Users/book/projects/spendguard/
+- 位置: /Users/book/projects/spendshield/
 
 ## 完善清单（竞品差距分析 02:03）
 - [ ] **MCP server 版**(最优先): Python 生态 MCP 支付护栏没人做, 形态对齐 payment-guard
@@ -49,8 +49,8 @@ AI Agent 付款安全层（99 元事故的产物）。Python 生态 + 血泪故�
 完善 1-4 后发（GitHub+PyPI），或等 AirGuard 发布时一起曝光。
 
 ## 前景判断(02:13 Felix 认同)
-- **SpendGuard = 低成本期权, 不是现金牛**
+- **SpendShield = 低成本期权, 不是现金牛**
 - 看多: AP2/x402 标准成形方向确定 / Python生态空白 / 99元事故背书 / 有落地场景
 - 看空: 时间不确定(1-3年僵尸期) / **大厂内置风险(最大威胁)** / 竞争涌入窗口6-12月 / 变现周期长
 - 姿势: 不 All-in(不追功能不运营), 低成本持有 + 绑定自己场景(AirGuard/麦当当) + AP2落地时发v1.0抢Python首选位
-- **主线仍是 AirGuard**, SpendGuard 当彩蛋养
+- **主线仍是 AirGuard**, SpendShield 当彩蛋养

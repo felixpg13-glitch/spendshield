@@ -1,13 +1,13 @@
-"""LangChain Agent 接入 SpendGuard 示例
+"""LangChain Agent 接入 SpendShield 示例
 
-让 LangChain 的 Tool 过 SpendGuard 闸门再执行。
+让 LangChain 的 Tool 过 SpendShield 闸门再执行。
 运行: python examples/langchain_agent.py
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from spendguard import SpendGuard, DryRunBlocked, BudgetExceeded
+from spendshield import SpendShield, DryRunBlocked, BudgetExceeded
 
-guard = SpendGuard(budget=200, dry_run=True)  # 默认干跑
+guard = SpendShield(budget=200, dry_run=True)  # 默认干跑
 
 
 def guarded_place_order(amount: float, to: str) -> str:

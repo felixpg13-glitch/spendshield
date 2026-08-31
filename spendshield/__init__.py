@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-SpendGuard — AI Agent 付款安全层
+SpendShield — AI Agent 付款安全层
 
 给 AI Agent 的「花钱动作」加上四道闸门:
   1. dry_run    干跑模式(默认开): 只预览, 不真花
@@ -13,20 +13,20 @@ SpendGuard — AI Agent 付款安全层
 AI 时代, 别让 Agent 替你花钱之前没有闸门。
 
 用法:
-    from spendguard import SpendGuard
+    from spendshield import SpendShield
 
-    guard = SpendGuard(budget=100, dry_run=True, approval="console")
+    guard = SpendShield(budget=100, dry_run=True, approval="console")
 
     @guard.protect("下单", max_amount=50)
     def place_order(order_id, amount, to):
         # ... 真实下单逻辑
         return {"ok": True}
 """
-from .guard import SpendGuard, GuardedError, BudgetExceeded, NeedsApproval, DryRunBlocked, UnknownAgent, AuditRecord
+from .guard import SpendShield, GuardedError, BudgetExceeded, NeedsApproval, DryRunBlocked, UnknownAgent, AuditRecord
 from .vault import KeyVault
 
 __version__ = "0.6.0"
 __all__ = [
-    "SpendGuard", "GuardedError", "BudgetExceeded",
+    "SpendShield", "GuardedError", "BudgetExceeded",
     "NeedsApproval", "DryRunBlocked", "UnknownAgent", "AuditRecord", "KeyVault",
 ]

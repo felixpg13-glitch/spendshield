@@ -1,4 +1,4 @@
-# OpenClaw 接入 SpendGuard
+# OpenClaw 接入 SpendShield
 
 在 OpenClaw 中给工具调用加付款护栏：用 MCP server 方式注册。
 
@@ -6,7 +6,7 @@
 
 1. 启动 MCP server（后台）：
    ```bash
-   spendguard-mcp --policy spendguard.yaml
+   spendshield-mcp --policy spendshield.yaml
    ```
 
 2. 在 OpenClaw 配置中注册 MCP 工具，agent 即可调用：
@@ -18,7 +18,7 @@
    ```
    用户: 帮我订一份麦当劳
    Agent: (调用 spend_protect {action: 下单, amount: 99, to: 麦当劳})
-   SpendGuard: {"ok": false, "reason": "[干跑] 未执行..."}
+   SpendShield: {"ok": false, "reason": "[干跑] 未执行..."}
    Agent: 需要先关闭干跑并确认预算，请管理员操作
    ```
 

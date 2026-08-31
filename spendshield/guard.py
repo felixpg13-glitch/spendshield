@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-SpendGuard 核心: 四道闸门实现
+SpendShield 核心: 四道闸门实现
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ from typing import Any, Callable, Optional
 
 
 class GuardedError(Exception):
-    """SpendGuard 拦截的基础异常"""
+    """SpendShield 拦截的基础异常"""
 
 
 class DryRunBlocked(GuardedError):
@@ -51,7 +51,7 @@ class AuditRecord:
         return asdict(self)
 
 
-class SpendGuard:
+class SpendShield:
     """
     给花钱函数加闸门。
 
@@ -73,7 +73,7 @@ class SpendGuard:
         blacklist: Optional[list] = None,      # 收款方黑名单: 直接拒绝
         whitelist: Optional[list] = None,      # 收款方白名单: 跳过人工确认
         rate_limit: Optional[dict] = None,     # {"window_s": 60, "max_calls": 3} 频率限制
-        policy: Optional[str] = None,          # 策略文件路径(spendguard.yaml)
+        policy: Optional[str] = None,          # 策略文件路径(spendshield.yaml)
         tg_token: str = "",                    # 远程审批: TG bot token
         tg_chat: str = "",                     # 远程审批: TG chat id
         webhook_url: str = "",                 # 远程审批: Webhook URL
@@ -87,7 +87,7 @@ class SpendGuard:
         self.dry_run = dry_run
         self.approval = approval
         self.on_block = on_block
-        self.log = log or (lambda rec: print(f"[SpendGuard] {rec.decision}: {rec.action} ¥{rec.amount} -> {rec.to}"))
+        self.log = log or (lambda rec: print(f"[SpendShield] {rec.decision}: {rec.action} ¥{rec.amount} -> {rec.to}"))
         self.blacklist = [str(x).lower() for x in (blacklist or [])]
         self.whitelist = [str(x).lower() for x in (whitelist or [])]
         self.rate_limit = rate_limit or {}
@@ -264,7 +264,7 @@ class SpendGuard:
             return False
         try:
             who = f"[{agent}] " if agent else ""
-            text = f"⚠️  SpendGuard 审批\n{who}{action} ¥{amount:.2f} -> {to}\n回复 y 确认 / n 拒绝"
+            text = f"⚠️  SpendShield 审批\n{who}{action} ¥{amount:.2f} -> {to}\n回复 y 确认 / n 拒绝"
             url = f"https://api.telegram.org/bot{self.tg_token}/sendMessage"
             body = json.dumps({"chat_id": self.tg_chat, "text": text}).encode()
             req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
@@ -368,7 +368,7 @@ class SpendGuard:
         """密钥保险库取用: 必须先过闸门(身份 + 意图审批), 取用留审计。
         name: 密钥名(视为收款方, 可加白名单免问); 未配置审批通道时新密钥名默认拒绝。"""
         if self.vault is None:
-            raise ValueError("未配置 KeyVault: SpendGuard(key_vault=KeyVault(...))")
+            raise ValueError("未配置 KeyVault: SpendShield(key_vault=KeyVault(...))")
         self._check(action, 0.0, to or name, agent=agent)   # 走身份 + 敏感审批闸门
         secret = self.vault.retrieve(name)
         rec = self._record(action=action, amount=0.0, to=to or name, agent=agent,
@@ -446,7 +446,7 @@ class SpendGuard:
             self.approve_above = float(cfg["approve_above"])
         if cfg.get("vault"):
             from .vault import KeyVault
-            vpath = cfg["vault"].get("path", "spendguard_vault.json")
+            vpath = cfg["vault"].get("path", "spendshield_vault.json")
             venv = cfg["vault"].get("master_key_env", "SPENDGUARD_MASTER_KEY")
             mk = os.environ.get(venv) if venv else None
             if mk:
@@ -493,7 +493,7 @@ class SpendGuard:
             "agents": agents,
         }
 
-    def export_audit(self, path: str = "spendguard_audit.json") -> str:
+    def export_audit(self, path: str = "spendshield_audit.json") -> str:
         """导出审计日志(自动创建父目录)"""
         d = os.path.dirname(os.path.abspath(path))
         if d:

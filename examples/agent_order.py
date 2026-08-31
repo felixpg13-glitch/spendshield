@@ -1,18 +1,18 @@
 # -*- coding: utf-8 -*-
 """
-Demo: AI Agent 自动下单, SpendGuard 拦下"99 元事故"
+Demo: AI Agent 自动下单, SpendShield 拦下"99 元事故"
 
 场景还原(2026-08-09 真实事故):
     自动化系统测试下单, dry 参数没生效, 4 单 99 元真实出码扣款。
 
-现在, 同样的场景, 有 SpendGuard:
+现在, 同样的场景, 有 SpendShield:
     1. dry_run 默认开 -> 先预览, 不会真花
     2. 关掉 dry_run 后还有 budget 兜底
     3. 大额/陌生收款方 -> 人工确认
 """
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from spendguard import SpendGuard, DryRunBlocked, BudgetExceeded, NeedsApproval
+from spendshield import SpendShield, DryRunBlocked, BudgetExceeded, NeedsApproval
 
 
 def main():
@@ -20,7 +20,7 @@ def main():
     print("场景: AI Agent 正在自动下单 (预算 ¥200)")
     print("=" * 50)
 
-    guard = SpendGuard(budget=200, dry_run=True)  # 默认干跑
+    guard = SpendShield(budget=200, dry_run=True)  # 默认干跑
 
     @guard.protect("下单")
     def place_order(amount, to, order_id=""):
@@ -52,7 +52,7 @@ def main():
 
     # --- 第三幕: 人工确认大额 ---
     print("\n[3] Agent 想转 ¥9,999 给'未知供应商'...")
-    guard2 = SpendGuard(budget=10000, dry_run=False, approval="console")
+    guard2 = SpendShield(budget=10000, dry_run=False, approval="console")
 
     @guard2.protect("转账", max_amount=5000)
     def transfer(amount, to):
@@ -64,11 +64,11 @@ def main():
         print(f"    🛑 单次上限拦截: {e}")
 
     # --- 审计 ---
-    fn = guard.export_audit("/tmp/spendguard_audit.json")
+    fn = guard.export_audit("/tmp/spendshield_audit.json")
     print(f"\n[审计] 全部留痕已导出 -> {fn}")
 
     print("\n" + "=" * 50)
-    print("结论: AI 替你花钱之前, 先过 SpendGuard 这关。")
+    print("结论: AI 替你花钱之前, 先过 SpendShield 这关。")
     print("=" * 50)
 
 

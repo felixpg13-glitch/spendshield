@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: spendguard
-Version: 0.1.0
+Version: 0.6.0
 Summary: AI Agent 付款安全层: 干跑/预算/人工确认/审计 四道闸门
 License: MIT
 Requires-Python: >=3.9
@@ -106,7 +106,7 @@ pip install spendguard   # 或直接 clone 用
 ```python
 from spendguard import SpendGuard
 
-guard = SpendGuard(budget=200, dry_run=True)   # 默认干跑
+guard = SpendGuard(budget=200, dry_run=True, whitelist=["麦当劳"])   # 默认干跑 + 信任收款方
 
 @guard.protect("下单")
 def place_order(amount, to):
@@ -122,6 +122,8 @@ guard.dry_run = False
 for i in range(4):
     place_order(amount=99, to="麦当劳")          # 第3单被 BudgetExceeded 拦住
 ```
+
+> 💡 新收款方默认需人工确认(意图一致性, 防提示注入)——把常用收款方加白名单或注册 Agent 身份可免。
 
 ## 🎯 谁需要它
 

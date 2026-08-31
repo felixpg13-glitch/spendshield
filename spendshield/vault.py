@@ -1,19 +1,19 @@
 # -*- coding: utf-8 -*-
 """
-SpendGuard KeyVault — 密钥保险库(Fireblocks 最小版)
+SpendShield KeyVault — 密钥保险库(Fireblocks 最小版)
 
 私钥/令牌加密落盘, 主密钥不落盘(环境变量持有)。
-取密钥必须经过 SpendGuard 闸门(身份 + 意图审批), 每次取用留审计。
+取密钥必须经过 SpendShield 闸门(身份 + 意图审批), 每次取用留审计。
 
 用法:
-    from spendguard import SpendGuard, KeyVault
+    from spendshield import SpendShield, KeyVault
 
     # 首次: 生成主密钥, 放进环境变量 SPENDGUARD_MASTER_KEY(别落盘!)
-    #   python -c "from spendguard import KeyVault; print(KeyVault.generate_key())"
+    #   python -c "from spendshield import KeyVault; print(KeyVault.generate_key())"
     vault = KeyVault("vault.json", master_key=os.environ["SPENDGUARD_MASTER_KEY"])
     vault.store("mcd_sk", "sk_live_xxxx")          # 加密落盘, 文件里无明文
 
-    guard = SpendGuard(key_vault=vault, approval="console")
+    guard = SpendShield(key_vault=vault, approval="console")
     guard.register_agent("mcd_bot", whitelist=["mcd_sk"])   # 密钥名加白名单免问
     sk = guard.get_secret("mcd_sk", agent="mcd_bot")        # 过闸门才能取
 """
@@ -29,7 +29,7 @@ from cryptography.fernet import Fernet
 class KeyVault:
     """加密密钥保险库: AES128-CBC + HMAC(Fernet), 主密钥不落盘"""
 
-    def __init__(self, path: str = "spendguard_vault.json", master_key: Optional[str] = None):
+    def __init__(self, path: str = "spendshield_vault.json", master_key: Optional[str] = None):
         self.path = path
         if master_key is None:
             master_key = os.environ.get("SPENDGUARD_MASTER_KEY")
@@ -56,7 +56,7 @@ class KeyVault:
         self._save()
 
     def retrieve(self, name: str) -> str:
-        """解密取回密钥(调用方负责先过 SpendGuard 闸门)"""
+        """解密取回密钥(调用方负责先过 SpendShield 闸门)"""
         if name not in self._data:
             raise KeyError(f"密钥不存在: {name}")
         return self._fernet.decrypt(self._data[name].encode()).decode()

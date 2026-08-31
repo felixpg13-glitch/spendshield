@@ -1,4 +1,4 @@
-# SpendGuard 文档
+# SpendShield 文档
 
 - [策略文档(policy.md)](policy.md) — 策略即代码配置
 - [MCP Server(mcp.md)](mcp.md) — AI Agent 接入

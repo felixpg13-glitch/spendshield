@@ -1,8 +1,8 @@
 {
   "mcpServers": {
-    "spendguard": {
+    "spendshield": {
       "command": "python",
-      "args": ["-m", "spendguard.mcp_server", "--policy", "/path/to/spendguard.yaml"],
+      "args": ["-m", "spendshield.mcp_server", "--policy", "/path/to/spendshield.yaml"],
       "env": {}
     }
   }

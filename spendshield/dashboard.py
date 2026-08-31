@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-"""SpendGuard 审计 Dashboard — 可视化审计记录
+"""SpendShield 审计 Dashboard — 可视化审计记录
 
 用法:
   1. 程序里导出审计: guard.export_audit("audit.json")
-  2. 启动看板:      python -m spendguard.dashboard --file audit.json --port 8775
+  2. 启动看板:      python -m spendshield.dashboard --file audit.json --port 8775
   3. 打开 http://localhost:8775
 """
 from __future__ import annotations
@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 PAGE = """<!DOCTYPE html>
 <html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SpendGuard 审计 Dashboard</title>
+<title>SpendShield 审计 Dashboard</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:radial-gradient(900px 500px at 20% -10%,#1b1633 0%,#0b0e14 55%);color:#e6e8ee;padding:28px;min-height:100vh}
@@ -35,7 +35,7 @@ th,td{padding:9px 12px;text-align:left;border-bottom:1px solid #21262d}
 th{color:#7d8590;font-weight:600;font-size:12px}
 .blocked{color:#f85149}.executed{color:#3fb950}.dry{color:#d29922}
 </style></head><body>
-<h1>💰 SpendGuard <span>审计 Dashboard</span></h1>
+<h1>💰 SpendShield <span>审计 Dashboard</span></h1>
 <div class="sub" id="meta">加载中...</div>
 <div class="stats" id="stats"></div>
 <table id="tbl"><thead><tr>
@@ -105,13 +105,13 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="spendguard-dashboard")
+    ap = argparse.ArgumentParser(prog="spendshield-dashboard")
     ap.add_argument("--file", default="audit.json", help="审计 JSON 文件")
     ap.add_argument("--port", type=int, default=8775)
     args = ap.parse_args()
     Handler.file = args.file
     srv = ThreadingHTTPServer(("0.0.0.0", args.port), Handler)
-    print(f"SpendGuard 审计看板: http://localhost:{args.port}  (file={args.file})")
+    print(f"SpendShield 审计看板: http://localhost:{args.port}  (file={args.file})")
     srv.serve_forever()
 
 

@@ -1,6 +1,6 @@
-# 💰 SpendGuard — AI Agent 付款安全层
+# 💰 SpendShield — AI Agent 付款安全层
 
-> **AI 替你花钱之前，先过 SpendGuard 这关。**
+> **AI 替你花钱之前，先过 SpendShield 这关。**
 
 让 AI Agent 下单、转账、调付费 API 之前，自动过四道闸门：
 **干跑预览 → 预算上限 → 人工确认 → 全量审计。**
@@ -30,9 +30,9 @@
 AI 没有法律人格，但必须有“数字身份”。每个 agent 注册专属策略，**未注册默认拒绝**：
 
 ```python
-from spendguard import SpendGuard, UnknownAgent
+from spendshield import SpendShield, UnknownAgent
 
-guard = SpendGuard(dry_run=False)
+guard = SpendShield(dry_run=False)
 guard.register_agent("mcd_bot", budget=50, max_amount=30,
                      blacklist=["测试收款"], whitelist=["麦当劳"],
                      rate_limit={"window_s": 60, "max_calls": 3})
@@ -56,7 +56,7 @@ AI 可能被劫持：提示注入、返利诱惑……闸门只知道“花多�
 ```python
 # 新收款方（从未交易过）→ 必须确认；没配审批通道 → 直接拒绝
 # 金额 > approve_above → 必须确认
-guard = SpendGuard(approve_new_recipient=True, approve_above=1000)
+guard = SpendShield(approve_new_recipient=True, approve_above=1000)
 ```
 
 - 交易成功的收款方自动进入记忆，之后不再反复烦你
@@ -69,17 +69,17 @@ guard = SpendGuard(approve_new_recipient=True, approve_above=1000)
 私钥不落地是 AI 支付的命门——**一次泄露，钱包被掏空**。密钥加密落盘，主密钥放环境变量，取用必须过闸门：
 
 ```bash
-python -c "from spendguard import KeyVault; print(KeyVault.generate_key())"  # 生成主密钥(仅此一次)
+python -c "from spendshield import KeyVault; print(KeyVault.generate_key())"  # 生成主密钥(仅此一次)
 export SPENDGUARD_MASTER_KEY=<刚才的输出>   # 放环境变量, 别写进代码/仓库
 ```
 
 ```python
-from spendguard import SpendGuard, KeyVault
+from spendshield import SpendShield, KeyVault
 
 vault = KeyVault("vault.json")              # 主密钥从环境变量读
 vault.store("mcd_sk", "sk_live_xxxx")      # 加密落盘, 文件里只有密文
 
-guard = SpendGuard(key_vault=vault)
+guard = SpendShield(key_vault=vault)
 guard.register_agent("mcd_bot", whitelist=["mcd_sk"])
 sk = guard.get_secret("mcd_sk", agent="mcd_bot")   # 过身份+意图闸门才能取
 ```
@@ -91,13 +91,13 @@ sk = guard.get_secret("mcd_sk", agent="mcd_bot")   # 过身份+意图闸门才�
 ## 🚀 快速开始
 
 ```bash
-pip install spendguard   # 或直接 clone 用
+pip install spendshield   # 或直接 clone 用
 ```
 
 ```python
-from spendguard import SpendGuard
+from spendshield import SpendShield
 
-guard = SpendGuard(budget=200, dry_run=True, whitelist=["麦当劳"])   # 默认干跑 + 信任收款方
+guard = SpendShield(budget=200, dry_run=True, whitelist=["麦当劳"])   # 默认干跑 + 信任收款方
 
 @guard.protect("下单")
 def place_order(amount, to):
@@ -105,7 +105,7 @@ def place_order(amount, to):
 
 # 干跑模式: 报错提示, 绝不真花
 place_order(amount=99, to="麦当劳")
-# => [SpendGuard] dry_run: 下单 ¥99.0 -> 麦当劳 (未执行)
+# => [SpendShield] dry_run: 下单 ¥99.0 -> 麦当劳 (未执行)
 # => DryRunBlocked: 关掉 dry_run 才会真花
 
 # 确认无误后放行, 预算闸门兜底
@@ -152,8 +152,8 @@ MIT — 拿去用。愿 AI 时代，没人再被"测试单"坑第二次。
 
 ```bash
 # 启动(stdio 模式, agent 配置里指向它)
-python -m spendguard.mcp_server --policy spendguard.yaml
-# 或安装后: spendguard-mcp --policy spendguard.yaml
+python -m spendshield.mcp_server --policy spendshield.yaml
+# 或安装后: spendshield-mcp --policy spendshield.yaml
 ```
 
 **工具**：

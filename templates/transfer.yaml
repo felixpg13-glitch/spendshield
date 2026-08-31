@@ -1,5 +1,5 @@
 # 场景模板: 转账(高风险, 从严)
-# 用法: SpendGuard(policy="templates/transfer.yaml")
+# 用法: SpendShield(policy="templates/transfer.yaml")
 dry_run: true
 budget: 1000
 max_amount: 500

@@ -1,6 +1,6 @@
-# SpendGuard 策略文档
+# SpendShield 策略文档
 
-策略即代码：所有规则收敛在 YAML 文件，`SpendGuard(policy="spendguard.yaml")` 加载。
+策略即代码：所有规则收敛在 YAML 文件，`SpendShield(policy="spendshield.yaml")` 加载。
 
 ## 字段说明
 

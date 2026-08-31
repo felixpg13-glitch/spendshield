@@ -1,12 +1,12 @@
-# SpendGuard MCP Server
+# SpendShield MCP Server
 
 让 Claude Code / OpenClaw 等 MCP 兼容 agent 直接调用付款护栏。
 
 ## 启动
 
 ```bash
-python -m spendguard.mcp_server --policy spendguard.yaml
-# 或安装后: spendguard-mcp --policy spendguard.yaml
+python -m spendshield.mcp_server --policy spendshield.yaml
+# 或安装后: spendshield-mcp --policy spendshield.yaml
 ```
 
 ## 工具

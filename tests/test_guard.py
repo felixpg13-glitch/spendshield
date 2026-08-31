@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
-"""SpendGuard 测试: 四道闸门全验证"""
+"""SpendShield 测试: 四道闸门全验证"""
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from spendguard import SpendGuard, DryRunBlocked, BudgetExceeded, NeedsApproval, UnknownAgent
+from spendshield import SpendShield, DryRunBlocked, BudgetExceeded, NeedsApproval, UnknownAgent
 
 
 def test_dry_run():
-    guard = SpendGuard(dry_run=True)
+    guard = SpendShield(dry_run=True)
     executed = []
     @guard.protect("下单")
     def place_order(amount, to):
@@ -23,7 +23,7 @@ def test_dry_run():
 
 
 def test_budget():
-    guard = SpendGuard(dry_run=False, budget=100, approve_new_recipient=False)
+    guard = SpendShield(dry_run=False, budget=100, approve_new_recipient=False)
     @guard.protect("下单")
     def place_order(amount, to):
         return "OK"
@@ -39,7 +39,7 @@ def test_budget():
 
 
 def test_max_amount():
-    guard = SpendGuard(dry_run=False, budget=1000)
+    guard = SpendShield(dry_run=False, budget=1000)
     @guard.protect("大额转账", max_amount=500)
     def transfer(amount, to):
         return "OK"
@@ -52,7 +52,7 @@ def test_max_amount():
 
 
 def test_approval_deny():
-    guard = SpendGuard(dry_run=False, approval=lambda rec: False)
+    guard = SpendShield(dry_run=False, approval=lambda rec: False)
     @guard.protect("下单")
     def place_order(amount, to):
         return "OK"
@@ -66,7 +66,7 @@ def test_approval_deny():
 
 
 def test_approval_allow_and_audit():
-    guard = SpendGuard(dry_run=False, approval=lambda rec: True)
+    guard = SpendShield(dry_run=False, approval=lambda rec: True)
     @guard.protect("下单")
     def place_order(amount, to):
         return "OK"
@@ -79,7 +79,7 @@ def test_approval_allow_and_audit():
 
 
 def test_failed_execution_no_charge():
-    guard = SpendGuard(dry_run=False, approve_new_recipient=False)
+    guard = SpendShield(dry_run=False, approve_new_recipient=False)
     @guard.protect("下单")
     def place_order(amount, to):
         raise RuntimeError("上游失败")
@@ -104,7 +104,7 @@ if __name__ == "__main__":
 
 def test_blacklist():
     """黑名单收款方直接拒绝"""
-    guard = SpendGuard(dry_run=False, blacklist=["未知供应商", "骗子"])
+    guard = SpendShield(dry_run=False, blacklist=["未知供应商", "骗子"])
     @guard.protect("转账")
     def transfer(amount, to):
         return "OK"
@@ -120,7 +120,7 @@ def test_blacklist():
 
 def test_whitelist_skips_approval():
     """白名单收款方跳过人工确认"""
-    guard = SpendGuard(dry_run=False, approval=lambda rec: False, whitelist=["麦当劳"])
+    guard = SpendShield(dry_run=False, approval=lambda rec: False, whitelist=["麦当劳"])
     @guard.protect("下单")
     def place_order(amount, to):
         return "OK"
@@ -131,7 +131,7 @@ def test_whitelist_skips_approval():
 
 def test_rate_limit():
     """同收款方频率限制"""
-    guard = SpendGuard(dry_run=False, rate_limit={"window_s": 60, "max_calls": 2},
+    guard = SpendShield(dry_run=False, rate_limit={"window_s": 60, "max_calls": 2},
                        approve_new_recipient=False)
     @guard.protect("下单")
     def place_order(amount, to):
@@ -152,8 +152,8 @@ def test_policy_file():
     """策略文件加载(策略即代码)"""
     import os, tempfile
     policy = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "..", "spendguard.yaml.example")
-    guard = SpendGuard(policy=policy)
+                          "..", "spendshield.yaml.example")
+    guard = SpendShield(policy=policy)
     assert guard.dry_run is True
     assert guard.budget == 200
     assert "未知供应商" in guard.blacklist
@@ -184,7 +184,7 @@ def test_webhook_approval():
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     port = srv.server_address[1]
 
-    guard = SpendGuard(dry_run=False, approval="webhook",
+    guard = SpendShield(dry_run=False, approval="webhook",
                        webhook_url=f"http://127.0.0.1:{port}/approve")
     @guard.protect("下单")
     def place_order(amount, to):
@@ -216,7 +216,7 @@ def test_webhook_approval_deny():
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     port = srv.server_address[1]
 
-    guard = SpendGuard(dry_run=False, approval="webhook",
+    guard = SpendShield(dry_run=False, approval="webhook",
                        webhook_url=f"http://127.0.0.1:{port}/approve")
     @guard.protect("转账")
     def transfer(amount, to):
@@ -235,7 +235,7 @@ def test_webhook_approval_deny():
 
 def test_agent_identity():
     """Agent 身份: 注册后放行, 审计带 agent 字段, 按 agent 记已花"""
-    guard = SpendGuard(dry_run=False, budget=1000, approve_new_recipient=False)
+    guard = SpendShield(dry_run=False, budget=1000, approve_new_recipient=False)
     guard.register_agent("mcd_bot", budget=100)
     @guard.protect("下单", agent="mcd_bot")
     def place_order(amount, to):
@@ -249,7 +249,7 @@ def test_agent_identity():
 
 def test_unknown_agent_rejected():
     """未注册 agent 默认拒绝(安全默认)"""
-    guard = SpendGuard(dry_run=False)
+    guard = SpendShield(dry_run=False)
     @guard.protect("下单")
     def place_order(amount, to):
         return "OK"
@@ -266,7 +266,7 @@ def test_unknown_agent_rejected():
 
 def test_allow_unknown_fallback():
     """allow_unknown=True 回落全局策略"""
-    guard = SpendGuard(dry_run=False, budget=100, allow_unknown=True,
+    guard = SpendShield(dry_run=False, budget=100, allow_unknown=True,
                        approve_new_recipient=False)
     @guard.protect("下单")
     def place_order(amount, to):
@@ -278,7 +278,7 @@ def test_allow_unknown_fallback():
 
 def test_agent_budget_isolation():
     """agent 级预算隔离: A 花完不影响 B"""
-    guard = SpendGuard(dry_run=False, budget=1000, approve_new_recipient=False)
+    guard = SpendShield(dry_run=False, budget=1000, approve_new_recipient=False)
     guard.register_agent("A", budget=50)
     guard.register_agent("B", budget=50)
     @guard.protect("下单")
@@ -298,7 +298,7 @@ def test_agent_budget_isolation():
 
 def test_agent_blacklist_and_rate():
     """agent 级黑名单只拦该 agent; 频率限制按 agent+收款方"""
-    guard = SpendGuard(dry_run=False, budget=1000, approve_new_recipient=False)
+    guard = SpendShield(dry_run=False, budget=1000, approve_new_recipient=False)
     guard.register_agent("A", blacklist=["骗子"], rate_limit={"window_s": 60, "max_calls": 2})
     @guard.protect("转账")
     def transfer(amount, to, agent=""):
@@ -326,8 +326,8 @@ def test_policy_agents_yaml():
     """YAML agents 段加载身份策略"""
     import os, tempfile, yaml
     policy = os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                          "..", "spendguard.yaml.example")
-    guard = SpendGuard(policy=policy)
+                          "..", "spendshield.yaml.example")
+    guard = SpendShield(policy=policy)
     assert guard.allow_unknown is False
     assert "mcd_bot" in guard._agents
     assert guard._agents["mcd_bot"]["budget"] == 50
@@ -340,7 +340,7 @@ def test_policy_agents_yaml():
 
 def test_intent_new_recipient_denied_no_channel():
     """新收款方 + 未配置审批通道 → 直接拒绝(安全默认, 防提示注入)"""
-    guard = SpendGuard(dry_run=False, approve_new_recipient=True)
+    guard = SpendShield(dry_run=False, approve_new_recipient=True)
     @guard.protect("转账")
     def transfer(amount, to):
         return "OK"
@@ -357,7 +357,7 @@ def test_intent_new_recipient_denied_no_channel():
 
 def test_intent_known_recipient_allowed():
     """交易成功的收款方进入记忆, 之后不再强制审批; 新收款方仍拒绝"""
-    guard = SpendGuard(dry_run=False, approval=lambda rec: True, approve_new_recipient=True)
+    guard = SpendShield(dry_run=False, approval=lambda rec: True, approve_new_recipient=True)
     @guard.protect("转账")
     def transfer(amount, to):
         return "OK"
@@ -375,7 +375,7 @@ def test_intent_known_recipient_allowed():
 
 def test_intent_approve_above():
     """大额触发强制审批, 小额不触发"""
-    guard = SpendGuard(dry_run=False, approve_above=100, approve_new_recipient=False)
+    guard = SpendShield(dry_run=False, approve_above=100, approve_new_recipient=False)
     @guard.protect("转账")
     def transfer(amount, to):
         return "OK"
@@ -392,7 +392,7 @@ def test_intent_approve_above():
 
 def test_intent_with_approval_channel():
     """配置审批通道时, 新收款方走审批流程(可放行); 白名单跳过"""
-    guard = SpendGuard(dry_run=False, approval=lambda rec: True,
+    guard = SpendShield(dry_run=False, approval=lambda rec: True,
                        approve_new_recipient=True, whitelist=["麦当劳"])
     @guard.protect("转账")
     def transfer(amount, to):
@@ -409,7 +409,7 @@ def test_intent_with_approval_channel():
 def test_vault_store_retrieve():
     """加密存储 + 解密取回, 落盘无明文"""
     import tempfile, os as _os
-    from spendguard import KeyVault
+    from spendshield import KeyVault
     mk = KeyVault.generate_key()
     with tempfile.TemporaryDirectory() as td:
         path = _os.path.join(td, "vault.json")
@@ -424,7 +424,7 @@ def test_vault_store_retrieve():
 def test_vault_requires_master_key():
     """没有主密钥拒绝启动(主密钥不落盘原则)"""
     import os as _os
-    from spendguard import KeyVault
+    from spendshield import KeyVault
     _os.environ.pop("SPENDGUARD_MASTER_KEY", None)
     try:
         KeyVault("/tmp/x_vault_test.json")
@@ -437,11 +437,11 @@ def test_vault_requires_master_key():
 def test_secret_access_via_guard():
     """guard.get_secret 过闸门: 注册 agent + 密钥名白名单 → 取到 + 审计"""
     import tempfile, os as _os
-    from spendguard import KeyVault
+    from spendshield import KeyVault
     with tempfile.TemporaryDirectory() as td:
         vault = KeyVault(_os.path.join(td, "vault.json"), master_key=KeyVault.generate_key())
         vault.store("mcd_sk", "sk_live_secret")
-        guard = SpendGuard(dry_run=False, key_vault=vault, approve_new_recipient=False)
+        guard = SpendShield(dry_run=False, key_vault=vault, approve_new_recipient=False)
         guard.register_agent("mcd_bot", whitelist=["mcd_sk"])
         sk = guard.get_secret("mcd_sk", agent="mcd_bot")
         assert sk == "sk_live_secret"
@@ -453,11 +453,11 @@ def test_secret_access_via_guard():
 def test_secret_denied_unknown_agent():
     """未注册 agent 取密钥被拒"""
     import tempfile, os as _os
-    from spendguard import KeyVault
+    from spendshield import KeyVault
     with tempfile.TemporaryDirectory() as td:
         vault = KeyVault(_os.path.join(td, "vault.json"), master_key=KeyVault.generate_key())
         vault.store("mcd_sk", "sk_live_secret")
-        guard = SpendGuard(dry_run=False, key_vault=vault)
+        guard = SpendShield(dry_run=False, key_vault=vault)
         try:
             guard.get_secret("mcd_sk", agent="hacker")
             assert False, "未注册 agent 取密钥应被拒"
@@ -469,11 +469,11 @@ def test_secret_denied_unknown_agent():
 def test_secret_denied_new_name_no_channel():
     """新密钥名 + 无审批通道 → 默认拒绝(防提示注入偷密钥)"""
     import tempfile, os as _os
-    from spendguard import KeyVault
+    from spendshield import KeyVault
     with tempfile.TemporaryDirectory() as td:
         vault = KeyVault(_os.path.join(td, "vault.json"), master_key=KeyVault.generate_key())
         vault.store("admin_key", "super_secret")
-        guard = SpendGuard(dry_run=False, key_vault=vault)
+        guard = SpendShield(dry_run=False, key_vault=vault)
         guard.register_agent("mcd_bot")
         try:
             guard.get_secret("admin_key", agent="mcd_bot")
@@ -487,7 +487,7 @@ def test_secret_denied_new_name_no_channel():
 
 def test_positional_to_blacklist():
     """位置传参时收款方也能被识别(黑名单/意图检查不能只认 kwargs)"""
-    guard = SpendGuard(dry_run=False, blacklist=["骗子"], approve_new_recipient=False)
+    guard = SpendShield(dry_run=False, blacklist=["骗子"], approve_new_recipient=False)
     @guard.protect("转账")
     def transfer(amount, to):
         return "OK"
@@ -503,7 +503,7 @@ def test_positional_to_blacklist():
 
 def test_positional_to_whitelist():
     """位置传参时白名单收款方跳过审批"""
-    guard = SpendGuard(dry_run=False, approval=lambda rec: False, whitelist=["麦当劳"])
+    guard = SpendShield(dry_run=False, approval=lambda rec: False, whitelist=["麦当劳"])
     @guard.protect("下单")
     def place_order(amount, to):
         return "OK"
@@ -515,7 +515,7 @@ def test_positional_to_whitelist():
 def test_export_audit_nested_dir():
     """审计导出到不存在的目录自动创建"""
     import tempfile, os as _os, json
-    guard = SpendGuard(dry_run=False, approve_new_recipient=False)
+    guard = SpendShield(dry_run=False, approve_new_recipient=False)
     @guard.protect("下单")
     def place_order(amount, to):
         return "OK"

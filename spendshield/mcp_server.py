@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""SpendGuard MCP Server — AI Agent 直接调用付款护栏
+"""SpendShield MCP Server — AI Agent 直接调用付款护栏
 
-让 Claude Code / OpenClaw / 任何 MCP 兼容 agent 通过工具调用过 SpendGuard 闸门。
+让 Claude Code / OpenClaw / 任何 MCP 兼容 agent 通过工具调用过 SpendShield 闸门。
 
 协议: MCP stdio transport (newline-delimited JSON-RPC 2.0)
 工具:
@@ -11,8 +11,8 @@
   - spend_reset:   重置会话已花金额
 
 用法:
-  python -m spendguard.mcp                 # 默认无策略
-  python -m spendguard.mcp --policy xx.yaml
+  python -m spendshield.mcp                 # 默认无策略
+  python -m spendshield.mcp --policy xx.yaml
 """
 from __future__ import annotations
 
@@ -21,10 +21,10 @@ import json
 import os
 import sys
 
-from .guard import SpendGuard, DryRunBlocked, BudgetExceeded, NeedsApproval, UnknownAgent
+from .guard import SpendShield, DryRunBlocked, BudgetExceeded, NeedsApproval, UnknownAgent
 
 PROTOCOL_VERSION = "2024-11-05"
-SERVER_NAME = "spendguard"
+SERVER_NAME = "spendshield"
 SERVER_VERSION = "0.2.0"
 
 
@@ -52,8 +52,8 @@ TOOLS = [
 ]
 
 
-class SpendGuardMCP:
-    def __init__(self, guard: SpendGuard):
+class SpendShieldMCP:
+    def __init__(self, guard: SpendShield):
         self.guard = guard
 
     # ---------- MCP 方法 ----------
@@ -157,19 +157,19 @@ class SpendGuardMCP:
 
 
 def main():
-    ap = argparse.ArgumentParser(prog="spendguard-mcp")
+    ap = argparse.ArgumentParser(prog="spendshield-mcp")
     ap.add_argument("--policy", default=os.environ.get("SPENDGUARD_POLICY", ""),
-                    help="策略文件路径(spendguard.yaml)")
+                    help="策略文件路径(spendshield.yaml)")
     ap.add_argument("--budget", type=float, default=0.0)
     ap.add_argument("--dry-run", action="store_true", default=True, help="干跑模式(默认开)")
     ap.add_argument("--no-dry-run", action="store_true", help="关闭干跑")
     args = ap.parse_args()
 
-    guard = SpendGuard(budget=args.budget, dry_run=not args.no_dry_run,
-                       log=lambda rec: print(f"[SpendGuard] {rec.decision}: {rec.action} \u00a5{rec.amount} -> {rec.to}", file=sys.stderr))
+    guard = SpendShield(budget=args.budget, dry_run=not args.no_dry_run,
+                       log=lambda rec: print(f"[SpendShield] {rec.decision}: {rec.action} \u00a5{rec.amount} -> {rec.to}", file=sys.stderr))
     if args.policy:
         guard.load_policy(args.policy)
-    mcp = SpendGuardMCP(guard)
+    mcp = SpendShieldMCP(guard)
 
     for line in sys.stdin:
         line = line.strip()

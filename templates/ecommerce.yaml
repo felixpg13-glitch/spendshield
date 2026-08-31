@@ -1,5 +1,5 @@
 # 场景模板: 电商下单
-# 用法: SpendGuard(policy="templates/ecommerce.yaml")
+# 用法: SpendShield(policy="templates/ecommerce.yaml")
 dry_run: true
 budget: 500
 max_amount: 200

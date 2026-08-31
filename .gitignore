@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# SpendGuard 运行时数据(含密钥/审计, 绝不提交!)
+spendguard_vault.json
+spendguard_audit.json
+vault.json
+
+# OS
+.DS_Store
