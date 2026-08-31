@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://felixpg13-glitch.github.io/spendshield/sitemap.xml
