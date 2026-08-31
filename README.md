@@ -138,6 +138,13 @@ for i in range(4):
 python3 tests/test_guard.py   # 6 个测试全过
 ```
 
+## 📝 反馈与贡献
+
+- 🐛 遇到 Bug?[开一个 issue](https://github.com/felixpg13-glitch/spendshield/issues/new?template=bug_report.md)
+- 💡 有想法?[提功能建议](https://github.com/felixpg13-glitch/spendshield/issues/new?template=feature_request.md)
+- 🔒 发现安全漏洞?请看 [SECURITY.md](SECURITY.md)(请勿公开,私下报告)
+- ⭐ 觉得有用,点个 star,让更多被坑过的人看到
+
 ## 📄 License
 
 MIT — 拿去用。愿 AI 时代，没人再被"测试单"坑第二次。
