@@ -43,6 +43,10 @@ AI Agent 付款安全层（99 元事故的产物）。Python 生态 + 血泪故�
 - [ ] **合规审计哈希链**: 审计记录链式哈希, 不可篡改证据(帮用户厘清责任边界)
 - [ ] **竞品调研(2026-08-31 记)**: AgentOnRails / AgentGuard / x402-secure 等 x402 安全项目, 抄可用的
 - ℹ️ **x402 生态现状(22:50 确认)**: 官方仓库 6560★ / Python SDK v2.21 / **已入 Linux 基金会官方组织** / Solana pay-kit 支持 x402+MPP+AP2 / qntx/openai-python 做透明 x402 支付
+- [ ] **预算预测(2026-08-31 22:56 外部建议吸收, 从拦截者变优化者)**: 基于历史消耗预测本月是否超支 + 提前预警; 智能路由(同效果更便宜的模型)——帮企业省钱 = 替换成本趋零
+- [ ] **生态绑定(等 star 起来后)**: 给 Vercel AI SDK / LangChain / Dify 提官方集成——成为框架默认选项
+- [ ] **数据飞轮(等有用户后)**: spendshield-policy-hub 公开策略库(防 OpenAI 盗刷/防抢跑模板) + 攻击指纹共享(威胁情报源)
+- [ ] **降低试用门槛**: README 加 docker run 一键启动(2026-08-31 22:56 已做 Dockerfile, 待加命令)
 - [x] **意图一致性(v0.5 完成)**: 新收款方/大额强制审批(approve_new_recipient/approve_above), 未配审批通道默认拒绝, 交易记忆(known_recipients)——提示注入的务实解法
 - [x] **密钥保险库(v0.6 完成)**: KeyVault(Fernet AES128-CBC+HMAC) 加密落盘, 主密钥环境变量不落盘, get_secret 过身份+意图闸门, 审计 secret_access; MCP secret_get 工具; 落盘无明文(有测试)
 - [ ] **合规报告导出**: 对齐国内《智能体支付应用自律公约》(2026-08 发布) KYA + CRA/EU AI Act——国内 Agent 开发者迟早需要合规工具=变现点
