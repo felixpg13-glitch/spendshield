@@ -58,6 +58,7 @@ class PolicyManager:
 
     def __init__(self, guard):
         self.guard = guard
+        self._lock = __import__("threading").RLock()   # apply/rollback 原子性(并发只有一个赢家)
         self.drafts: dict[str, PolicyDraft] = {}
         self._versions: dict[str, dict] = {}     # version -> policy dict
         self._applied_by: dict[str, str] = {}    # version -> 操作者
@@ -160,13 +161,22 @@ class PolicyManager:
         d = self._get(draft_id)
         if d.state != "REVIEWED":
             raise PolicyLifecycleError(f"APPLY 前必须 REVIEWED(当前 {d.state}): 不允许跳过评审上线")
-        old_version = self.guard._v2_policy.version if self.guard._v2_policy else "(none)"
-        self.guard._setup_v2(dict(d.policy))
         version = str(d.policy.get("version", f"v{int(time.time())}"))
-        self._versions[version] = dict(d.policy)
-        self._applied_by[version] = by
-        d.transition("APPLIED", by)
-        self._audit("policy_apply", d, by, f"applied {old_version} -> {version} by {by}")
+        with self._lock:
+            # 版本冲突检测: 同 version 不同内容 → 拒绝(历史不可覆盖)
+            if version in self._versions:
+                import json as _j
+                old_p = self._versions[version].get("policy", {})
+                new_p = d.policy.get("policy", {})
+                if _j.dumps(old_p, sort_keys=True, default=str) != _j.dumps(new_p, sort_keys=True, default=str):
+                    raise PolicyLifecycleError(
+                        f"version '{version}' 已存在且内容不同: 不允许覆盖历史(请用新版本号)")
+            old_version = self.guard._v2_policy.version if self.guard._v2_policy else "(none)"
+            self.guard._setup_v2(dict(d.policy))
+            self._versions[version] = dict(d.policy)
+            self._applied_by[version] = by
+            d.transition("APPLIED", by)
+            self._audit("policy_apply", d, by, f"applied {old_version} -> {version} by {by}")
         return {"ok": True, "version": version, "from": old_version, "draft_id": draft_id}
 
     # ── VERSION / ROLLBACK ────────────────────────────────
@@ -175,11 +185,12 @@ class PolicyManager:
                  "policy": p} for v, p in self._versions.items()]
 
     def rollback(self, version: str, by: str = "") -> dict:
-        if version not in self._versions:
-            raise PolicyLifecycleError(f"版本不存在: {version}")
-        current = self.guard._v2_policy.version if self.guard._v2_policy else "(none)"
-        self.guard._setup_v2(dict(self._versions[version]))
-        self._audit("policy_rollback", None, by, f"rolled back {current} -> {version} by {by}")
+        with self._lock:
+            if version not in self._versions:
+                raise PolicyLifecycleError(f"版本不存在: {version}")
+            current = self.guard._v2_policy.version if self.guard._v2_policy else "(none)"
+            self.guard._setup_v2(dict(self._versions[version]))
+            self._audit("policy_rollback", None, by, f"rolled back {current} -> {version} by {by}")
         return {"ok": True, "version": version, "from": current}
 
     def diff(self, v1: str, v2: str) -> str:
