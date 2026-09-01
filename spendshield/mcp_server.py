@@ -25,7 +25,7 @@ from .guard import SpendShield, DryRunBlocked, BudgetExceeded, NeedsApproval, Un
 
 PROTOCOL_VERSION = "2024-11-05"
 SERVER_NAME = "spendshield"
-SERVER_VERSION = "0.2.0"
+SERVER_VERSION = "0.3.0"
 
 
 def _tool_schema(name: str, desc: str, props: dict, required: list) -> dict:
@@ -49,6 +49,32 @@ TOOLS = [
                  {"name": {"type": "string", "description": "密钥名(如 mcd_sk)"},
                   "agent": {"type": "string", "description": "调用方 Agent 身份 ID"}},
                  ["name", "agent"]),
+    _tool_schema("spend_authorize", "V2 授权入口: 返回三态决策 ALLOW/DENY/APPROVAL + 命中规则(RuleHit 结构化)。"
+                 "ALLOW=可付款; APPROVAL=需人工审批(拿 approval_id 调 spend_approve); DENY=拒绝",
+                 {"agent": {"type": "string", "description": "Agent 身份 ID(匿名可省)"},
+                  "amount": {"type": "number", "description": "金额"},
+                  "to": {"type": "string", "description": "收款方"},
+                  "meta": {"type": "object", "description": "附加上下文(可带 idempotency_key 防重放)"}},
+                 ["amount", "to"]),
+    _tool_schema("spend_approve", "批准一笔挂起审批(APPROVAL 状态)。批准后重新评估, 返回最终决策",
+                 {"approval_id": {"type": "string", "description": "spend_authorize 返回的 approval_id"},
+                  "by": {"type": "string", "description": "批准人标识"}},
+                 ["approval_id"]),
+    _tool_schema("spend_reject", "拒绝一笔挂起审批",
+                 {"approval_id": {"type": "string", "description": "spend_authorize 返回的 approval_id"},
+                  "by": {"type": "string", "description": "拒绝人标识"}},
+                 ["approval_id"]),
+    _tool_schema("policy_sim", "花钱前模拟(不真花): 评估单笔或金额扫描, 返回决策+命中规则。"
+                 "Agent 在发起支付前先问'这单会不会被拦'",
+                 {"agent": {"type": "string", "description": "Agent 身份 ID"},
+                  "amount": {"type": "number", "description": "单笔金额(与 amounts 二选一)"},
+                  "amounts": {"type": "array", "items": {"type": "number"}, "description": "金额扫描列表(找边界)"},
+                  "to": {"type": "string", "description": "收款方"}},
+                 ["to"]),
+    _tool_schema("policy_apply", "应用/更新策略(宿主管理工具, 仅限受信调用者)。传 policy JSON 生效新规则;"
+                 "无参数返回当前策略摘要。策略变更会审计留痕",
+                 {"policy": {"type": "string", "description": "V2 policy JSON(可选, 省略=查当前)"}},
+                 []),
 ]
 
 
@@ -87,6 +113,16 @@ class SpendShieldMCP:
             return {"ok": True, "message": "已花金额已重置"}
         if name == "secret_get":
             return self._secret_get(args)
+        if name == "spend_authorize":
+            return self._authorize_v2(args)
+        if name == "spend_approve":
+            return self._approve_v2(args)
+        if name == "spend_reject":
+            return self._reject_v2(args)
+        if name == "policy_sim":
+            return self._policy_sim(args)
+        if name == "policy_apply":
+            return self._policy_apply(args)
         raise ValueError(f"未知工具: {name}")
 
     def _protect(self, args: dict) -> dict:
@@ -123,6 +159,84 @@ class SpendShieldMCP:
             return {"ok": True, "name": name, "secret": secret}
         except (DryRunBlocked, BudgetExceeded, NeedsApproval, UnknownAgent, KeyError) as e:
             return {"ok": False, "reason": str(e)}
+
+    def _authorize_v2(self, args: dict) -> dict:
+        agent = args.get("agent", "")
+        amount = float(args.get("amount", 0))
+        to = args.get("to", "?")
+        meta = args.get("meta") or {}
+        try:
+            r = self.guard.authorize(agent, amount, to, meta=meta, action="mcp:authorize")
+            return {"ok": r.decision == "ALLOW", "decision": r.decision,
+                    "reason": r.reason,
+                    "rules": [h.to_dict() for h in r.rules],
+                    "approval_id": r.approval_id, "spent": self.guard.spent,
+                    "hint": ("已授权可付款" if r.decision == "ALLOW"
+                             else f"需审批: 调 spend_approve approval_id={r.approval_id}"
+                             if r.decision == "APPROVAL" else "被拒, 见 reason")}
+        except Exception as e:
+            return {"ok": False, "decision": "ERROR", "reason": str(e)[:200]}
+
+    def _approve_v2(self, args: dict) -> dict:
+        aid = args.get("approval_id", "")
+        r = self.guard.approve(aid, by=args.get("by", "mcp"))
+        return {"ok": r.decision == "ALLOW", "decision": r.decision, "reason": r.reason}
+
+    def _reject_v2(self, args: dict) -> dict:
+        aid = args.get("approval_id", "")
+        r = self.guard.reject(aid, by=args.get("by", "mcp"))
+        return {"ok": False, "decision": r.decision, "reason": r.reason}
+
+    def _policy_sim(self, args: dict) -> dict:
+        from .policy import PolicySimulator
+        agent = args.get("agent", "")
+        to = args.get("to", "?")
+        amounts = args.get("amounts")
+        if amounts is None and args.get("amount") is not None:
+            amounts = [float(args["amount"])]
+        if not amounts:
+            return {"ok": False, "reason": "需要 amount 或 amounts"}
+        try:
+            sim = PolicySimulator(policy=self.guard._v2_policy, agents=self.guard._v2_agents)
+            results = {}
+            for amt in amounts:
+                r = sim.evaluate(agent, float(amt), to)
+                results[str(amt)] = {"decision": r.decision, "reason": r.reason,
+                                     "rules": [h.to_dict() for h in r.rules]}
+            return {"ok": True, "results": results,
+                    "note": "纯模拟, 未记账未付款"}
+        except Exception as e:
+            return {"ok": False, "reason": str(e)[:200]}
+
+    def _policy_apply(self, args: dict) -> dict:
+        content = args.get("policy")
+        p = self.guard._v2_policy
+        if not content:
+            if p is None:
+                return {"ok": False, "reason": "no policy loaded"}
+            import dataclasses
+            return {"ok": True, "version": p.version,
+                    "policy": dataclasses.asdict(p)}
+        # 应用新策略(宿主管理操作, 审计留痕)
+        raw = json.loads(content) if isinstance(content, str) else content
+        import tempfile, os
+        import yaml
+        with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
+            yaml.safe_dump(raw, f)
+            path = f.name
+        try:
+            old_version = p.version if p else "(none)"
+            self.guard.load_policy(path)
+            self.guard._record(action="policy_apply", amount=0, to="",
+                               decision="policy_applied",
+                               reason=f"{old_version} -> {raw.get('version', '?')}",
+                               spent_after=self.guard.spent)
+            return {"ok": True, "version": raw.get("version", "?"),
+                    "message": f"policy applied ({old_version} -> {raw.get('version', '?')})"}
+        except Exception as e:
+            return {"ok": False, "reason": f"policy rejected: {str(e)[:200]}"}
+        finally:
+            os.unlink(path)
 
     # ---------- JSON-RPC 分发 ----------
     def handle(self, line: str) -> str | None:
