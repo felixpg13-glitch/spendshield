@@ -43,6 +43,8 @@ class PolicySimulator:
             self.state.spent_total += amount
             self.state.spent_daily[day] = self.state.spent_daily.get(day, 0.0) + amount
             self.state.spent_monthly[month] = self.state.spent_monthly.get(month, 0.0) + amount
+            if agent:
+                self.state.spent_by_agent[agent] = self.state.spent_by_agent.get(agent, 0.0) + amount
             import time
             self.state.rate_hits.append((time.time(), agent, _norm_to(to, self.policy.merchants.allow_subdomains), amount))
             self.state.known_recipients.add(_norm_to(to, self.policy.merchants.allow_subdomains))

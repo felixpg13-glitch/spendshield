@@ -168,9 +168,14 @@ class SpendShieldMCP:
 
     def _authorize_v2(self, args: dict) -> dict:
         agent = args.get("agent", "")
-        amount = float(args.get("amount", 0))
         to = args.get("to", "?")
         meta = args.get("meta") or {}
+        if not isinstance(meta, dict):
+            meta = {}
+        try:
+            amount = float(args.get("amount", 0))
+        except (TypeError, ValueError):
+            return {"ok": False, "decision": "ERROR", "reason": "amount must be a number"}
         try:
             r = self.guard.authorize(agent, amount, to, meta=meta, action="mcp:authorize")
             return {"ok": r.decision == "ALLOW", "decision": r.decision,
@@ -224,7 +229,14 @@ class SpendShieldMCP:
             return {"ok": True, "version": p.version,
                     "policy": dataclasses.asdict(p)}
         # 应用新策略(宿主管理操作, 审计留痕)
-        raw = json.loads(content) if isinstance(content, str) else content
+        try:
+            raw = json.loads(content) if isinstance(content, str) else content
+            if not isinstance(raw, dict):
+                return {"ok": False, "reason": "policy must be a JSON object"}
+            if len(json.dumps(raw)) > 1_000_000:
+                return {"ok": False, "reason": "policy too large"}
+        except json.JSONDecodeError as e:
+            return {"ok": False, "reason": f"invalid JSON: {str(e)[:100]}"}
         import tempfile, os
         import yaml
         with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
