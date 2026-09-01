@@ -1,19 +1,16 @@
 ---
-name: 💡 功能建议
-about: 为 SpendShield 提出新功能或改进想法
-title: "[feat] 简短描述"
+name: 💡 Feature request
+about: Suggest something (please read CONTRIBUTING.md first — features need a real user story)
+title: ''
 labels: enhancement
 assignees: ''
 ---
 
-## 你的使用场景
-<!-- 你在什么场景下需要这个功能 -->
+**What real problem does this solve?**
+Not "wouldn't it be nice" — who needs this, and what happens today without it?
 
-## 期望的功能
-<!-- 描述你想要的,越具体越好 -->
+**Suggested approach**
+If you have one.
 
-## 替代方案
-<!-- 目前你怎么绕过的(如果有) -->
-
-## 其他
-<!-- 相关截图、链接、想法 -->
+**Acceptance criteria**
+How would we know it works?

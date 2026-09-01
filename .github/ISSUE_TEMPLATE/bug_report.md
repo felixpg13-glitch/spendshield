@@ -1,30 +1,27 @@
 ---
-name: 🐛 Bug 报告
-about: 报告一个 Bug,帮助 SpendShield 变得更好
-title: "[bug] 简短描述"
+name: 🐛 Bug report
+about: Something isn't working as expected
+title: ''
 labels: bug
 assignees: ''
 ---
 
-## 描述 Bug
-<!-- 清晰描述这个 bug 是什么 -->
+**Describe the bug**
+A clear and concise description.
 
-## 复现步骤
-1. 
-2. 
-3. 
+**Minimal reproduction**
+```python
+from spendshield import SpendShield
+# ... minimal code that triggers the bug
+```
 
-## 期望行为
-<!-- 应该发生什么 -->
+**Expected vs actual**
+- Expected: `ALLOW` / `APPROVAL` / `DENY` / no error
+- Actual:
 
-## 实际行为
-<!-- 实际发生了什么(贴错误信息/截图) -->
+**Environment**
+- Python version:
+- spendshield version: (`pip show spendshield`)
 
-## 环境
-- Python 版本:
-- 安装方式: (pip install spendshield / 源码)
-- 操作系统:
-- SpendShield 版本:
-
-## 其他
-<!-- 日志、配置(注意脱敏密钥!)等 -->
+**⚠️ Security issue?**
+If this is a security vulnerability (e.g. unauthorized transaction could get ALLOW), **do NOT open a public issue** — follow [SECURITY.md](../SECURITY.md) responsible disclosure instead.
