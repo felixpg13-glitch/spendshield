@@ -80,6 +80,14 @@ Simulator 与真实 authorize 语义必须严格一致——改引擎时跑 `tes
 3. PyPI: `twine upload dist/spendshield-*`(token 走钥匙串 pypi-token, 用户名 `__token__`)
 4. ⚠️ 打包用 `[tool.setuptools.packages.find] include = ["spendshield*"]`——显式 packages 列表会漏子包(0.6.x 血泪)
 
+## ⚠️ 真实世界验证优先于功能开发(2026-09-01 Felix 定)
+
+- **「实现 ≈ 设计」不等于「设计 ≈ 真实需求」**。测试全绿只证明我们符合自己的设计。
+- 没有 PMF 前不做 enterprise features。0.8 已冻结功能开发。
+- 优先回答: 有没有真实的人/团队愿意把真实钱流量交给 SpendShield?
+- 每个真实场景跑完记录 7 问(见 `docs/REALITY_TEST.md`), 进 Corpus。
+- 外部红队是硬要求: 黑盒攻击者拿公开 API 让 $50 变 $5000, 才是真正的压力测试。
+
 ## 迭代规则(每版本必答 5 问)
 
 1. 新增了什么能力?
