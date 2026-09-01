@@ -181,3 +181,25 @@ SpendShield guards real money. Try to break it.
 ---
 
 **SpendShield: the layer I wish I had before my AI spent my money.**
+
+---
+
+## ✅ Ready to try it?
+
+**60 seconds:** [▶ Run the demo in Colab — no install](https://colab.research.google.com/github/felixpg13-glitch/spendshield/blob/main/examples/quickstart.ipynb)
+
+**5 minutes:** 
+```bash
+pip install spendshield   # v0.8.0
+```
+
+```python
+from spendshield import SpendShield
+
+shield = SpendShield(budget=100, max_amount=50)
+
+@shield.protect("order")
+def place_order(amount, to): ...
+```
+
+That's it. If it ever lets an unauthorized payment through — [break the gate](https://github.com/felixpg13-glitch/spendshield#-break-the-gate--security-challenge) and get credited.
