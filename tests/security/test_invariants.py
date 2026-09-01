@@ -195,7 +195,6 @@ def test_invariant_policy_is_immutable_at_runtime():
     assert g._v2_estate.spent_total == 10
     # 合法方式改配置: 重新 load 后生效
     g.load_policy.__self__._setup_v2(dict(POLICY))
-    g._v2_agents = {}
     assert g.authorize("bot", 40, "amazon.com").decision == "APPROVAL"  # 重新加载后恢复正常
 
 
