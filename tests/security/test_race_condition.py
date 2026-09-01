@@ -21,10 +21,10 @@ POLICY = {
 }
 
 
-def _make_guard():
+def _make_guard(cfg=None):
     import tempfile, yaml, os
     with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
-        yaml.safe_dump(POLICY, f)
+        yaml.safe_dump(cfg or POLICY, f)
         path = f.name
     g = SpendShield(dry_run=False)
     g.load_policy(path)
@@ -70,10 +70,9 @@ def test_concurrent_authorize_booking_matches():
 
 def test_rate_limit_window_race():
     """并发打满频率窗口: 超过 max_calls 的必须被拒"""
-    g = _make_guard()
-    # 改窗口: max_calls=5
-    g._v2_policy.rate_limit.max_calls = 5
-    g._v2_policy.rate_limit.window_s = 3600
+    cfg = dict(POLICY)
+    cfg["policy"] = dict(POLICY["policy"], rate_limit={"window_s": 3600, "max_calls": 5})
+    g = _make_guard(cfg)
     results = []
     def attack():
         results.append(g.authorize("racer", 10, "amazon.com").decision)

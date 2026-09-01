@@ -22,10 +22,10 @@ POLICY = {
 }
 
 
-def _make_guard():
+def _make_guard(cfg=None):
     import tempfile, yaml, os
     with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
-        yaml.safe_dump(POLICY, f)
+        yaml.safe_dump(cfg or POLICY, f)
         path = f.name
     g = SpendShield(dry_run=False)
     g.load_policy(path)
@@ -41,11 +41,22 @@ def test_unknown_agent_denied():
     assert g._v2_estate.spent_total == 0
 
 
-def test_empty_agent_uses_global_policy():
-    """空 agent(无身份): 走全局策略, 仍然受全局规则约束"""
+def test_empty_agent_denied_by_default():
+    """空 agent(无身份): 默认拒绝(宪法: 无效身份不能付款)"""
     g = _make_guard()
     r = g.authorize("", 10, "amazon.com")
-    assert r.decision == "ALLOW"   # 全局允许
+    assert r.decision == "DENY"
+    assert "empty agent" in r.reason.lower()
+    assert g._v2_estate.spent_total == 0
+
+
+def test_empty_agent_allowed_with_allow_unknown():
+    """allow_unknown=True: 空身份走全局策略, 仍受全局规则约束"""
+    cfg = dict(POLICY)
+    cfg["policy"] = dict(POLICY["policy"], allow_unknown=True)
+    g = _make_guard(cfg)
+    r = g.authorize("", 10, "amazon.com")
+    assert r.decision == "ALLOW"
     r2 = g.authorize("", 500, "amazon.com")
     assert r2.decision == "DENY"   # 全局 max=100 兜底
 

@@ -128,6 +128,7 @@ class SpendShield:
         self._v2_lock = __import__("threading").RLock()   # 评估-记账原子性(防 TOCTOU)
         self._v2_replay: dict = {}        # idempotency_key -> 已执行请求(fingerprint)
         self._v2_replay_decisions: dict = {}   # fingerprint -> decision(防 double spend)
+        self._v2_policy_fp: str = ""      # 已加载 Policy 的指纹(防运行时篡改)
         for aid, aconf in (agents or {}).items():
             self.register_agent(aid, **{k: v for k, v in aconf.items()
                                         if k in ("budget", "max_amount", "blacklist",
@@ -576,6 +577,7 @@ class SpendShield:
             raise RuntimeError("V2 policy engine not available (policy/ package missing)")
         self._v2_policy = v2_load_policy(raw)
         self._v2_agents = raw.get("agents", {}) or {}
+        self._v2_policy_fp = self._policy_fp()
         for trusted in raw.get("_trusted_from_v1", []):   # 旧 whitelist → 预信任
             self._v2_estate.known_recipients.add(trusted)
             self._known_recipients.add(trusted)
@@ -592,11 +594,19 @@ class SpendShield:
         from .policy import PaymentRequest as PR
         meta = dict(meta or {})
         req = PR(agent=agent or "", amount=float(amount), to=to, meta=meta)
-        # 未知 agent 安全默认
+        # 未知/空 agent 安全默认(宪法: 无效身份不能付款)
+        # allow_unknown=True 时: 空身份走全局; 未注册身份仍拒
         if agent and agent not in self._v2_agents and not self._v2_policy.allow_unknown:
             return self._v2_result("DENY", f"unknown agent '{agent}', denied by default", req)
+        if not agent and not self._v2_policy.allow_unknown:
+            return self._v2_result("DENY", "empty agent, denied by default (set allow_unknown to use global policy)", req)
         ap = V2AgentPolicy.merge(agent or "", self._v2_policy, self._v2_agents.get(agent))
         with self._v2_lock:
+            # 防篡改: 运行时改 policy 对象 → 拒绝(宪法: Agent 不能绕过 SpendShield)
+            if self._v2_policy_fp and self._policy_fp() != self._v2_policy_fp:
+                res = self._v2_result("DENY", "policy tampered at runtime, denied (reload policy to change rules)", req)
+                self._record_v2(res, action=action or "authorize")
+                return res
             # 防重放: 幂等键已消费过 → 拒绝(同 key 任何内容变体都算重放)
             ikey = meta.get("idempotency_key")
             if ikey and ikey in self._v2_replay:
@@ -615,6 +625,14 @@ class SpendShield:
             res.request["meta"] = self._redact_meta(res.request.get("meta", {}))
         self._record_v2(res, action=action or "authorize")
         return res
+
+    def _policy_fp(self) -> str:
+        """当前 Policy 对象指纹(序列化哈希), 用于检测运行时篡改"""
+        import dataclasses, hashlib
+        d = dataclasses.asdict(self._v2_policy) if self._v2_policy else {}
+        return hashlib.sha256(
+            __import__("json").dumps(d, sort_keys=True, default=str).encode()
+        ).hexdigest()
 
     def _v2_result(self, decision: str, reason: str, req) -> AuthorizationResult:
         """构造结果 + 输出脱敏(request.meta 中敏感键打码)"""

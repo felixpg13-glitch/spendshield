@@ -21,10 +21,10 @@ POLICY = {
 }
 
 
-def _make_guard():
+def _make_guard(cfg=None):
     import tempfile, yaml, os
     with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
-        yaml.safe_dump(POLICY, f)
+        yaml.safe_dump(cfg or POLICY, f)
         path = f.name
     g = SpendShield(dry_run=False)
     g.load_policy(path)
@@ -68,9 +68,9 @@ def test_tampered_new_request_goes_through_all_gates():
 
 def test_approval_does_not_whitelist_unknown_merchant_permanently():
     """新商户审批通过只记 known, 不影响 other unknown 商户"""
-    g = _make_guard()
-    # 用无白名单配置: 任何非白名单商户都要求审批
-    g._v2_policy.merchants.allowed = []
+    cfg = dict(POLICY)
+    cfg["policy"] = dict(POLICY["policy"], merchants={"allowed": [], "blocked": [], "allow_subdomains": True})
+    g = _make_guard(cfg)
     r = g.authorize("agent-x", 10, "shop-a.com")
     assert r.decision == "APPROVAL"    # 新商户
     g.approve(r.approval_id)

@@ -21,10 +21,10 @@ POLICY = {
 }
 
 
-def _make_guard():
+def _make_guard(cfg=None):
     import tempfile, yaml, os
     with tempfile.NamedTemporaryFile("w", suffix=".yaml", delete=False) as f:
-        yaml.safe_dump(POLICY, f)
+        yaml.safe_dump(cfg or POLICY, f)
         path = f.name
     g = SpendShield(dry_run=False)
     g.load_policy(path)
@@ -75,17 +75,18 @@ def test_path_port_tamper_denied_or_safe():
 
 def test_subdomain_spoof_with_subdomains_disabled():
     """allow_subdomains=False 时, 连真子域都拒绝"""
-    g = _make_guard()
-    g._v2_policy.merchants.allow_subdomains = False
+    cfg = dict(POLICY)
+    cfg["policy"] = dict(POLICY["policy"], merchants={"allowed": ["amazon.com"], "blocked": [], "allow_subdomains": False})
+    g = _make_guard(cfg)
     assert g.authorize("bot", 10, "checkout.amazon.com").decision == "DENY"
     assert g.authorize("bot", 10, "amazon.com").decision == "ALLOW"
 
 
 def test_blocklist_tamper():
     """黑名单同样规范化: 大小写/协议不能绕过黑名单"""
-    g = _make_guard()
-    g._v2_policy.merchants.allowed = []
-    g._v2_policy.merchants.blocked = ["scam.com"]
+    cfg = dict(POLICY)
+    cfg["policy"] = dict(POLICY["policy"], merchants={"allowed": [], "blocked": ["scam.com"], "allow_subdomains": True})
+    g = _make_guard(cfg)
     assert g.authorize("bot", 10, "SCAM.com").decision == "DENY"
     assert g.authorize("bot", 10, "https://scam.com").decision == "DENY"
     assert g.authorize("bot", 10, "scam.com.evil.io").decision == "ALLOW"  # 不同域
