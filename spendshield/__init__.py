@@ -25,7 +25,7 @@ AI 时代, 别让 Agent 替你花钱之前没有闸门。
 from .guard import SpendShield, GuardedError, BudgetExceeded, NeedsApproval, DryRunBlocked, UnknownAgent, AuditRecord
 from .vault import KeyVault
 
-__version__ = "0.7.0"
+__version__ = "0.7.2"
 __all__ = [
     "SpendShield", "GuardedError", "BudgetExceeded",
     "NeedsApproval", "DryRunBlocked", "UnknownAgent", "AuditRecord", "KeyVault",
