@@ -18,9 +18,11 @@ spendshield/
 │   ├── engine.py         #   评估管线: merchant→amount→budget→rate→approval(纯函数)
 │   ├── simulator.py      #   PolicySimulator(单点/扫描/矩阵, 不真花)
 │   └── versioning.py     #   策略快照/回滚/diff
+├── audit.py              # 审计证据层(哈希链 event_hash+previous, 5问可答, JSONL导出)
 ├── adapters/x402.py      # x402 支付协议适配(服务端+客户端)
-├── mcp_server.py         # MCP server(10 个工具, AI Agent 直接调用)
+├── mcp_server.py         # MCP server(16 个工具, AI Agent 直接调用)
 ├── vault.py              # 密钥保险库(Fernet 加密, 取用过闸门)
+└── policy/lifecycle.py   # 0.8 策略生命周期(CREATE→VALIDATE→SIMULATE→SCAN→REVIEW→APPLY→ROLLBACK)
 └── tests/
     └── security/         # 19 个攻击套件(116 测试): 8 攻击面 + 宪法 + Fuzz + Hardening
 ```
@@ -67,8 +69,8 @@ result = shield.authorize(agent="bot", amount=75, to="amazon.com")
 ## 测试
 
 ```bash
-python3 -m pytest tests/            # 全量(当前 186 全绿)
-python3 -m pytest tests/security/   # 攻击套件(116)
+python3 -m pytest tests/            # 全量(当前 234 全绿)
+python3 -m pytest tests/security/   # 攻击套件(126+)
 ```
 
 Simulator 与真实 authorize 语义必须严格一致——改引擎时跑 `test_hardening_sim_consistency.py`(800 笔随机差分)。
@@ -102,6 +104,8 @@ Simulator 与真实 authorize 语义必须严格一致——改引擎时跑 `tes
 
 ## Roadmap 现状
 
-V1 ✅ → V2 Policy Engine ✅ → V2.1 Simulator ✅ → V2.2 Security Harness ✅ → 引擎切换 ✅ → MCP ✅ → **v0.7.0 已发 PyPI** → 下一个: 第一个真实 Agent(麦当当) → V3 Intent Layer(防 prompt injection)→ V4 Risk → V5 IAM → V6 Payment Rails → V7 Dashboard → V8 Enterprise
+V1 ✅ → V2 Policy Engine ✅ → V2.2 Security Harness ✅ → **v0.7.2 Known-Good 基线 ✅(PyPI)** → **0.8 Policy Lifecycle ✅**(CREATE→VALIDATE→SIMULATE→SCAN→REVIEW→APPLY→ROLLBACK, MCP 16工具, v0.8.0 release)
+→ **当前阶段: Reality Test**(0.8 功能冻结, 找 5-10 真实场景验证需求, 见 docs/REALITY_TEST.md)
+→ 第一个真实 Agent(麦当当接入) → V3 Intent Layer → V4 Risk → V5 IAM → V6 Payment Rails → 1.0
 
 设计文档: `docs/V2_POLICY_ENGINE.md` / `docs/policy.md`(DSL 手册)
