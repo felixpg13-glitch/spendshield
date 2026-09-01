@@ -23,8 +23,10 @@ class RuleHit:
     message: str         # 人类可读: "transaction $75 exceeds the $50 limit"
 
     def to_dict(self) -> dict:
+        from .explanation import rule_code
         return {
             "rule": self.rule,
+            "code": rule_code(self.rule),   # 稳定机器码(LLM/UI/审计消费)
             "operator": self.operator,
             "expected": self.expected,
             "actual": self.actual,
