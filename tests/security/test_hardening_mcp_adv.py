@@ -43,7 +43,7 @@ def test_prompt_injection_big_purchase_blocked():
     r2 = m._authorize_v2({"agent": "bot", "amount": 2000, "to": "amazon.com"})
     assert r2["decision"] == "DENY"
     assert any(h["rule"] == "max_transaction" for h in r2["rules"])
-    assert "$50.00" in r2["reason"]
+    assert "$50.00" in r2["reason_text"]
     assert m.guard._v2_estate.spent_total == 0
 
 

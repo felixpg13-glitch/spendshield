@@ -49,6 +49,14 @@ TOOLS = [
                  {"name": {"type": "string", "description": "密钥名(如 mcd_sk)"},
                   "agent": {"type": "string", "description": "调用方 Agent 身份 ID"}},
                  ["name", "agent"]),
+    _tool_schema("authorize_payment", "SpendShield 授权入口(契约 v1): 在付款前判断一笔资金请求。"
+                 "输入 recipient/amount/purpose/agent_id; 返回 status(ALLOW/APPROVAL/DENY) + decision_id + policy_version + 结构化 reason(code/message/current_usage/requested)。"
+                 "ALLOW=可付款; APPROVAL=需人工审批(用 decision_id 调 spend_approve); DENY=拒绝",
+                 {"recipient": {"type": "string", "description": "收款方(商户/地址/账号)"},
+                  "amount": {"type": "number", "description": "金额"},
+                  "purpose": {"type": "string", "description": "用途说明(审计可读, 如 '订阅续费' '下单')"},
+                  "agent_id": {"type": "string", "description": "调用方 Agent 身份 ID(匿名可省)"}},
+                 ["recipient", "amount"]),
     _tool_schema("spend_authorize", "V2 授权入口: 返回三态决策 ALLOW/DENY/APPROVAL + 命中规则(RuleHit 结构化)。"
                  "ALLOW=可付款; APPROVAL=需人工审批(拿 approval_id 调 spend_approve); DENY=拒绝",
                  {"agent": {"type": "string", "description": "Agent 身份 ID(匿名可省)"},
@@ -140,7 +148,7 @@ class SpendShieldMCP:
             return {"ok": True, "message": "会话状态已完整重置(预算/频率/审批/收款方记忆)"}
         if name == "secret_get":
             return self._secret_get(args)
-        if name == "spend_authorize":
+        if name in ("spend_authorize", "authorize_payment"):
             return self._authorize_v2(args)
         if name == "spend_approve":
             return self._approve_v2(args)
@@ -203,26 +211,57 @@ class SpendShieldMCP:
             return {"ok": False, "reason": str(e)}
 
     def _authorize_v2(self, args: dict) -> dict:
-        agent = args.get("agent", "")
-        to = args.get("to", "?")
+        # 契约 v1(新) + 兼容旧字段
+        agent = args.get("agent_id") or args.get("agent") or ""
+        to = args.get("recipient") or args.get("to") or "?"
+        purpose = args.get("purpose", "")
         meta = args.get("meta") or {}
         if not isinstance(meta, dict):
             meta = {}
+        if purpose:
+            meta["purpose"] = purpose
         try:
             amount = float(args.get("amount", 0))
         except (TypeError, ValueError):
-            return {"ok": False, "decision": "ERROR", "reason": "amount must be a number"}
+            return {"ok": False, "status": "ERROR", "decision": "ERROR",
+                    "policy_version": self._pv(),
+                    "reason": {"code": "BAD_REQUEST", "message": "amount must be a number",
+                               "current_usage": None, "requested": args.get("amount")},
+                    "reason_text": "amount must be a number"}
         try:
             r = self.guard.authorize(agent, amount, to, meta=meta, action="mcp:authorize")
-            return {"ok": r.decision == "ALLOW", "decision": r.decision,
-                    "reason": r.reason,
-                    "rules": [h.to_dict() for h in r.rules],
-                    "approval_id": r.approval_id, "spent": self.guard.spent,
-                    "hint": ("已授权可付款" if r.decision == "ALLOW"
-                             else f"需审批: 调 spend_approve approval_id={r.approval_id}"
-                             if r.decision == "APPROVAL" else "被拒, 见 reason")}
         except Exception as e:
-            return {"ok": False, "decision": "ERROR", "reason": str(e)[:200]}
+            return {"ok": False, "status": "ERROR", "decision": "ERROR",
+                    "policy_version": self._pv(),
+                    "reason": {"code": "ENGINE_ERROR", "message": str(e)[:200],
+                               "current_usage": None, "requested": amount},
+                    "reason_text": str(e)[:200]}
+        code = ""
+        if r.rules:
+            code = r.rules[0].to_dict().get("code") or ""
+        code = code or {
+            "ALLOW": "OK", "APPROVAL": "APPROVAL_REQUIRED", "DENY": "DENIED",
+        }.get(r.decision, r.decision)
+        return {"ok": r.decision == "ALLOW",
+                "status": r.decision,
+                "decision_id": r.approval_id,
+                "policy_version": self._pv(),
+                "reason": {"code": code, "message": r.reason,
+                           "current_usage": self.guard.spent, "requested": amount},
+                "decision": r.decision,          # 兼容旧字段
+                "reason_text": r.reason,
+                "rules": [h.to_dict() for h in r.rules],
+                "approval_id": r.approval_id,
+                "spent": self.guard.spent,
+                "hint": ("已授权可付款" if r.decision == "ALLOW"
+                         else f"需审批: 调 spend_approve approval_id={r.approval_id}"
+                         if r.decision == "APPROVAL" else "被拒, 见 reason")}
+
+    def _pv(self) -> str:
+        try:
+            return (self.guard.status() or {}).get("policy_version") or ""
+        except Exception:
+            return ""
 
     def _approve_v2(self, args: dict) -> dict:
         aid = args.get("approval_id", "")

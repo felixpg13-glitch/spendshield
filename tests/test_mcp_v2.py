@@ -44,7 +44,7 @@ def test_authorize_deny_with_rules():
     r = m._authorize_v2({"agent": "bot", "amount": 75, "to": "amazon.com"})
     assert r["ok"] is False and r["decision"] == "DENY"
     assert r["rules"][0]["rule"] == "max_transaction"
-    assert "$75.00" in r["reason"]
+    assert "$75.00" in r["reason_text"]
 
 
 def test_authorize_approval_flow():
@@ -106,7 +106,7 @@ def test_policy_apply_new():
     rr = m._authorize_v2({"agent": "bot", "amount": 100, "to": "amazon.com"})
     # 注意: 新策略没有 agents 配置, bot 未注册 → DENY
     assert rr["decision"] == "DENY"
-    assert "unknown agent" in rr["reason"].lower()
+    assert "unknown agent" in rr["reason_text"].lower()
     # 审计留痕(unknown-agent 拒绝也会写审计, 故用存在性断言)
     assert any(r.decision == "policy_applied" for r in m.guard.records)
 
