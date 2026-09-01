@@ -177,6 +177,7 @@ SpendShield guards real money. Try to break it.
 - In-memory audit (append-only on the roadmap)
 - **We are actively seeking real-world attacks**: [Reality Test](docs/REALITY_TEST.md) — challenge: *make a DENY turn into APPROVE*
 - **Deployment models & trust boundaries**: [SDK → MCP → Gateway](docs/DEPLOYMENT_MODELS.md) — what each layer guarantees (and what it can't)
+- **Roadmap (demand-driven)**: [SDK → users → Agent → enforced entry → Governance → Platform](docs/PRODUCT_ROADMAP.md)
 
 ---
 
