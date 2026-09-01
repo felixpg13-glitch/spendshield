@@ -1,17 +1,39 @@
-# 💰 SpendShield — the layer between AI agents and your money
+# 💰 SpendShield — the authorization layer between AI agents and real money
 
-> **Let AI agents spend real money — without spending it recklessly.**
-> One YAML policy. One `authorize()` call. Every payment decided, explained, and audited.
+> **Before your AI spends real money, it passes through SpendShield.**
+
+[![PyPI version](https://img.shields.io/pypi/v/spendshield)](https://pypi.org/project/spendshield/)
+[![Tests](https://img.shields.io/badge/tests-229%20passing-brightgreen)](https://github.com/felixpg13-glitch/spendshield/actions)
+[![Python](https://img.shields.io/badge/python-3.9%2B-blue)]()
+[![License](https://img.shields.io/badge/license-MIT-green)]()
+
+Agent wants to spend **$75**:
+
+```text
+AGENT ──► SpendShield ──► Policy: max $50
+              │
+              ▼
+        ❌ DENY — transaction $75.00 exceeds the $50.00 limit
+              │
+              └── MAX_TRANSACTION_EXCEEDED · audited · policy v2.0.0
+```
+
+One YAML policy. One `authorize()` call. Every payment **decided, explained, audited** — with a reason an LLM can consume, and a tamper-evident audit chain.
 
 [**▶ 30-second live demo**](https://felixpg13-glitch.github.io/spendshield/demo.html) — watch an AI agent get stopped.
 
-SpendShield is not a wallet and not a payment processor. It sits at `Agent ↔ Money` and answers one question: **should this payment happen?** — with deterministic rules, a human-readable reason, and an audit trail you can verify. Payment providers (Stripe, x402, wallets) stay downstream; SpendShield never holds your money.
+## 📊 Status — v0.8.x · 229 tests passing
 
-```text
-AGENT ──► SpendShield ──► ALLOW / APPROVAL / DENY ──► Stripe / x402 / Wallet
-              │                 │
-              └── why? ────────┘   (reason codes + audit hash chain)
-```
+| Policy Lifecycle | Security |
+|---|---|
+| ✓ Validate | ✓ Fuzz testing (random-seed soak) |
+| ✓ Simulate | ✓ Invariant testing (8-rule constitution) |
+| ✓ Scan | ✓ MCP adversarial testing |
+| ✓ Review | ✓ Tamper-evident audit chain |
+| ✓ Apply · ✓ Version · ✓ Rollback | ✓ Attack corpus (45 cases) |
+
+Not a demo — a working baseline. Every result in the demo is real engine output.
+
 
 ## ⚡ Quickstart — 5 minutes to running
 
@@ -76,7 +98,7 @@ Claude Code / any MCP host gets: `spend_authorize`, `spend_approve`, `policy_sim
 
 ## 🧪 How it's tested (real money → real discipline)
 
-- **218+ tests**, 14+ security suites: budget bypass, race conditions, replay, double-spend, parameter tampering, credential leaks…
+- **229 tests**, 14+ security suites: budget bypass, race conditions, replay, double-spend, parameter tampering, credential leaks…
 - **Security constitution — 8 invariants** that must never break: unauthorized → no payment · over budget → no payment · approval mismatch → no payment · invalid identity → no payment · replay → at most one authorization · concurrency → never breaks budget · engine failure → deny · agent can't bypass SpendShield
 - **Fuzz (random-seed soak)**: thousands of attack combinations per run, Money Invariant must hold
 - **Audit hash chain**: every decision is an event chained by hash — tamper with history and it's detected
