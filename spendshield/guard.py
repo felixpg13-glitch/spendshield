@@ -643,6 +643,34 @@ class SpendShield:
             "agents": agents,
         }
 
+    def status(self) -> dict:
+        """V2 运行状态(Observability): 引擎/策略/预算/审批/频率 全量快照"""
+        from datetime import date, datetime
+        st = self._v2_estate
+        day = date.today().isoformat()
+        month = datetime.now().strftime("%Y-%m")
+        p = self._v2_policy
+        status = {
+            "engine": "v2-policy-engine",
+            "engine_version": __import__("spendshield", fromlist=["__version__"]).__version__,
+            "policy_version": p.version if p else None,
+            "dry_run": self.dry_run,
+            "spent": round(self._spent, 4),
+            "spent_by_agent": {k: round(v, 4) for k, v in (st.spent_by_agent if st else {}).items()},
+            "budget": {
+                "daily": {"limit": p.budget.daily if p else 0, "used": round(st.spent_daily.get(day, 0.0), 4) if st else 0},
+                "monthly": {"limit": p.budget.monthly if p else 0, "used": round(st.spent_monthly.get(month, 0.0), 4) if st else 0},
+                "total": {"limit": p.budget.total if p else 0, "used": round(st.spent_total, 4) if st else 0},
+            },
+            "pending_approvals": len(st.pending) if st else 0,
+            "rate_window_hits": len(st.rate_hits) if st else 0,
+            "known_recipients": len(st.known_recipients) if st else 0,
+            "records": len(self.records),
+            "blocked": sum(1 for r in self.records if r.decision.startswith("v2_deny") or r.decision.startswith("blocked")),
+            "allowed": sum(1 for r in self.records if r.decision in ("v2_allow", "executed")),
+        }
+        return status
+
     def export_audit(self, path: str = "spendshield_audit.json") -> str:
         """导出审计日志(自动创建父目录)"""
         d = os.path.dirname(os.path.abspath(path))
