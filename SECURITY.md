@@ -1,29 +1,43 @@
-# Security Policy
+# 🏅 SpendShield Security Hall of Fame
 
-## Reporting a Vulnerability
+> Honoring attackers who made an unauthorized transaction get ALLOW.
+> Every entry below is a **real bypass** that became a permanent regression test — SpendShield is stronger because of them.
 
-SpendShield 是一个支付安全工具,我们认真对待安全问题。
+## Rules of engagement
 
-**请不要在公开 issue 中报告安全漏洞。** 请通过以下方式私下报告:
+- 🧪 **Sandbox only** — `dry_run=True`, test keys, never real payment systems.
+- 📝 Open an issue with a minimal reproduction (agent, amount, to, policy, expected vs actual).
+- 🏅 First valid bypass per attack class gets credited here.
+- 🔒 Valid = the bypass is reproducible, violates a documented invariant, and gets fixed + regression-tested.
 
-- 打开一个 issue 并勾选 "This is a security vulnerability" 选项(GitHub 会隐藏内容)
-- 或直接通过 GitHub 私信联系维护者
+## Current status
 
-## 我们承诺
+- **234 tests** · 14 security suites · **0 known escapes**
 
-- 48 小时内确认收到报告
-- 尽快评估并修复,提供修复版本
-- 在修复发布后公开致谢(如你愿意)
+## Honored
 
-## 什么算漏洞
+| Date | Attacker | Attack class | Finding | Fixed in | Regression test |
+|---|---|---|---|---|---|
+| — | *waiting for the first one* | | | | |
 
-- 绕过闸门(dry-run / budget / approval)的方法
-- 审计日志被篡改/绕过
-- 密钥保险库(KeyVault)的加密缺陷
-- 提示注入导致未授权支付
+## Known attack classes already covered (already defended)
 
-## 赏金
+| Class | Defense | Test suite |
+|---|---|---|
+| Budget bypass (concurrent) | locked evaluate-and-book | `tests/security/test_budget_bypass.py` |
+| Race condition (approve) | single-flight approval | `tests/security/test_race_condition.py` |
+| Replay (same key) | idempotency keys | `tests/security/test_replay_attack.py` |
+| Double spend (approve twice) | pending consumed once | `tests/security/test_double_spend.py` |
+| Policy bypass (NaN, empty, tampering) | input gates + policy fingerprint | `tests/security/test_policy_bypass.py` |
+| Approval bypass (tampered amount) | re-evaluate on approve | `tests/security/test_approval_bypass.py` |
+| Parameter tampering (domain spoof) | exact-domain matching | `tests/security/test_parameter_tampering.py` |
+| Credential leak (meta in audit) | redaction | `tests/security/test_credential_leak.py` |
+| Stale approval after policy change | pending cleared on reload | `tests/security/test_security_audit.py` |
+| MCP tool-chain abuse | host-level audit | `tests/security/test_hardening_mcp_adv.py` |
+| Simulator ≠ real divergence | differential testing | `tests/security/test_hardening_sim_consistency.py` |
+| State machine jumps | lifecycle state machine | `tests/test_policy_lifecycle.py` |
+| Audit tampering | hash chain | `tests/test_audit_trail.py` |
 
-项目处于早期阶段,暂无现金赏金,但**高危漏洞发现者将获得:
-- 致谢(README Credits)
-- 社区核心贡献者身份
+---
+
+*The gate is only as strong as the attackers it has survived. Break it — we'll make it stronger.*

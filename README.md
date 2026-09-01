@@ -132,6 +132,20 @@ V1 prevent reckless spending ✅ → V2 Policy Engine ✅ → V2.2 Security Harn
 
 On August 9, 2026, my automation ran a test order. I sent `dry: true` expecting a price preview — the server only honored `?dry=1`. **4 orders of ¥99 were charged for real. The money was gone.** When AI starts spending real money, who puts a gate in front of it? I turned my scar into a library.
 
+## 🏴 Break the Gate — Security Challenge
+
+SpendShield guards real money. Try to break it.
+
+**The challenge:** make an unauthorized transaction get **ALLOW** — bypass the policy, forge an approval, race the budget, replay a payment, tamper with history. Anything.
+
+**Rules:**
+- 🧪 **Sandbox only** — use `dry_run=True` / test keys. Never point attacks at real payment systems.
+- 🐛 Found a bypass? Open an issue with a minimal reproduction.
+- 🏅 First valid bypass per attack class gets credited in the [Security Hall of Fame](SECURITY.md).
+- 🔒 Every valid finding becomes a permanent regression test — this is how the gate gets stronger.
+
+**Current status:** 234 tests · 14 security suites · 0 known escapes.
+
 ## ⚠️ Transparent threat model
 
 - MCP has no auth — trust your host; `policy_apply` / `policy_review` are host-level operations
