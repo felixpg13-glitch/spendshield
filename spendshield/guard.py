@@ -126,6 +126,8 @@ class SpendShield:
         self._v2_agents: dict = {}        # agents 配置表
         self._v2_estate = V2EngineState() if V2EngineState else None
         self._v2_lock = __import__("threading").RLock()   # 评估-记账原子性(防 TOCTOU)
+        self._v2_replay: dict = {}        # idempotency_key -> 已执行请求(fingerprint)
+        self._v2_replay_decisions: dict = {}   # fingerprint -> decision(防 double spend)
         for aid, aconf in (agents or {}).items():
             self.register_agent(aid, **{k: v for k, v in aconf.items()
                                         if k in ("budget", "max_amount", "blacklist",
@@ -583,25 +585,55 @@ class SpendShield:
         """V2 授权入口: 返回 AuthorizationResult, 不抛异常。
 
         决策 ALLOW 后自动记账(预算/频率/收款方记忆), 全部在锁内完成(防并发 TOCTOU)。
+        meta 带 idempotency_key 时防重放: 同一 key 已成功 → 拒绝(防 double spend)。
         """
         if self._v2_policy is None:
             raise RuntimeError("no V2 policy loaded: use load_policy() with new-format YAML first")
         from .policy import PaymentRequest as PR
-        req = PR(agent=agent or "", amount=float(amount), to=to, meta=dict(meta or {}))
+        meta = dict(meta or {})
+        req = PR(agent=agent or "", amount=float(amount), to=to, meta=meta)
         # 未知 agent 安全默认
         if agent and agent not in self._v2_agents and not self._v2_policy.allow_unknown:
-            return AuthorizationResult(decision="DENY",
-                                       reason=f"unknown agent '{agent}', denied by default",
-                                       request=req.to_dict(), policy_version=self._v2_policy.version)
+            return self._v2_result("DENY", f"unknown agent '{agent}', denied by default", req)
         ap = V2AgentPolicy.merge(agent or "", self._v2_policy, self._v2_agents.get(agent))
         with self._v2_lock:
+            # 防重放: 幂等键已消费过 → 拒绝(同 key 任何内容变体都算重放)
+            ikey = meta.get("idempotency_key")
+            if ikey and ikey in self._v2_replay:
+                res = self._v2_result("DENY", f"replay detected: idempotency_key '{ikey}' already executed", req)
+                self._record_v2(res, action=action or "authorize")
+                return res
             res = v2_evaluate(req, ap, self._v2_estate)
             if res.decision == "ALLOW":
                 self._book_v2(agent, amount, to)
+                if ikey:
+                    self._v2_replay[ikey] = req.to_dict()
             elif res.decision == "APPROVAL":
                 self._v2_estate.pending[res.approval_id] = (req, ap)
+        # 输出统一脱敏
+        if res.request:
+            res.request["meta"] = self._redact_meta(res.request.get("meta", {}))
         self._record_v2(res, action=action or "authorize")
         return res
+
+    def _v2_result(self, decision: str, reason: str, req) -> AuthorizationResult:
+        """构造结果 + 输出脱敏(request.meta 中敏感键打码)"""
+        res = AuthorizationResult(decision=decision, reason=reason,
+                                  request=req.to_dict(),
+                                  policy_version=self._v2_policy.version if self._v2_policy else "")
+        res.request["meta"] = self._redact_meta(res.request.get("meta", {}))
+        return res
+
+    @staticmethod
+    def _redact_meta(meta: dict) -> dict:
+        """审计/日志输出脱敏: secret/token/password/key/card 等键打码"""
+        _SENSITIVE = ("secret", "token", "password", "passwd", "api_key", "apikey",
+                      "authorization", "cookie", "credit", "card", "cvv", "key")
+        out = {}
+        for k, v in (meta or {}).items():
+            kl = str(k).lower()
+            out[k] = "***REDACTED***" if any(s in kl for s in _SENSITIVE) else v
+        return out
 
     def approve(self, approval_id: str, by: str = "") -> AuthorizationResult:
         """批准挂起审批 → 重新评估(防审批期间预算/名单变化)"""
@@ -621,9 +653,14 @@ class SpendShield:
             res = v2_evaluate(req, ap, self._v2_estate, approval_granted=True)
             if res.decision == "ALLOW":
                 self._book_v2(req.agent, req.amount, req.to)
+                ikey = req.meta.get("idempotency_key")
+                if ikey:
+                    self._v2_replay[ikey] = req.to_dict()
             elif res.decision == "APPROVAL":   # 理论不可达(已豁免), 防御
                 res.decision = "DENY"
                 res.reason = "approval re-requested after grant (state changed), denied"
+        if res.request:
+            res.request["meta"] = self._redact_meta(res.request.get("meta", {}))
         self._record_v2(res, action=f"approve[{by}]" if by else "approve")
         return res
 

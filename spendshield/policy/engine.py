@@ -6,6 +6,7 @@ gate 链是插拔式的: V3 加 IntentGate, V4 加 RiskGate 就是新增一个 g
 """
 from __future__ import annotations
 
+import math
 import time
 from datetime import date, datetime
 from typing import Optional
@@ -65,11 +66,24 @@ def evaluate(req: PaymentRequest, policy: Policy, state: EngineState,
     whitelisted = False
     if policy.merchants.allowed:
         nm = _norm_merchant(req.to, policy.merchants.allow_subdomains)
-        whitelisted = any(a in nm or nm in a for a in policy.merchants.allowed)
+        # 精确域匹配; 仅 allow_subdomains=True 时允许子域
+        # (防 "notamazon.com" 含 "amazon.com" 子串绕过)
+        whitelisted = any(nm == a or (policy.merchants.allow_subdomains and nm.endswith("." + a))
+                          for a in policy.merchants.allowed)
         if not whitelisted and policy.merchants.allowed:
             hits.append(RuleHit("merchant_allowed", "in", policy.merchants.allowed, req.to,
                                 "block", f"merchant '{req.to}' is not in the allowed list"))
             return _finish("DENY", req, policy, hits)
+
+    # ── 3.5 输入合法性(恶意输入前置拦截) ─────────────────────────────────
+    if not math.isfinite(req.amount):
+        hits.append(RuleHit("valid_amount", "finite", True, req.amount,
+                            "block", "amount must be a finite number"))
+        return _finish("DENY", req, policy, hits)
+    if not str(req.to or "").strip():
+        hits.append(RuleHit("valid_merchant", "nonempty", True, req.to,
+                            "block", "merchant must not be empty"))
+        return _finish("DENY", req, policy, hits)
 
     # ── 4. gate_amount ────────────────────────────────────────────────────
     if policy.transaction.max > 0 and req.amount > policy.transaction.max:
