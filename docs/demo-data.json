@@ -1,0 +1,92 @@
+{
+  "policy": {
+    "version": "2.0.0",
+    "policy": {
+      "budget": {
+        "daily": 100,
+        "monthly": 500
+      },
+      "transaction": {
+        "max": 50
+      },
+      "merchants": {
+        "allowed": [
+          "amazon.com",
+          "walmart.com"
+        ],
+        "blocked": [
+          "scam-vip.com"
+        ]
+      },
+      "approval": {
+        "over": 30,
+        "new_merchant": true,
+        "channel": "tg"
+      }
+    },
+    "agents": {
+      "shopping-agent": {
+        "transaction": {
+          "max": 50
+        },
+        "approval": {
+          "over": 30,
+          "new_merchant": true,
+          "channel": "tg"
+        }
+      }
+    }
+  },
+  "scenes": [
+    {
+      "code": "A",
+      "name": "正常购买",
+      "agent": "shopping-agent",
+      "amount": 20,
+      "to": "amazon.com",
+      "decision": "ALLOW",
+      "explain": "Decision: ALLOW\nReason: approved\nPolicy version: 2.0.0"
+    },
+    {
+      "code": "B",
+      "name": "恶意页面诱导买 $2,000 VIP",
+      "agent": "shopping-agent",
+      "amount": 2000,
+      "to": "scam-vip.com",
+      "decision": "DENY",
+      "explain": "Decision: DENY\nReason: merchant 'scam-vip.com' is blocked\n  - MERCHANT_BLOCKED: merchant 'scam-vip.com' is blocked (block)\nPolicy version: 2.0.0"
+    },
+    {
+      "code": "C",
+      "name": "大额支出(需人工审批)",
+      "agent": "shopping-agent",
+      "amount": 40,
+      "to": "walmart.com",
+      "decision": "APPROVAL",
+      "explain": "Decision: APPROVAL\nReason: amount $40.00 exceeds the $30.00 approval threshold\n  - APPROVAL_REQUIRED: amount $40.00 exceeds the $30.00 approval threshold (warn)\nPolicy version: 2.0.0\nApproval id: a30274b39e92"
+    },
+    {
+      "code": "D",
+      "name": "白名单外的新商户",
+      "agent": "shopping-agent",
+      "amount": 10,
+      "to": "unknown-shop.com",
+      "decision": "DENY",
+      "explain": "Decision: DENY\nReason: merchant 'unknown-shop.com' is not in the allowed list\n  - MERCHANT_NOT_ALLOWED: merchant 'unknown-shop.com' is not in the allowed list (block)\nPolicy version: 2.0.0"
+    },
+    {
+      "code": "E",
+      "name": "拆单突破日预算(3×$40, 日预算$100)",
+      "agent": "shopping-agent",
+      "amount": 40,
+      "to": "walmart.com",
+      "decision": "DENY(第3笔)",
+      "explain": "第一笔 APPROVAL→批准记账\n第二笔 APPROVAL→批准记账(80/100)\n第三笔 DENY: daily spend $80.00 + $40.00 exceeds the $100.00 daily budget",
+      "steps": [
+        "第1笔 $40 → APPROVAL",
+        "第2笔 $40 → APPROVAL",
+        "第3笔 $40 → DENY"
+      ]
+    }
+  ]
+}

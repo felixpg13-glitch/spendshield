@@ -1,33 +1,41 @@
-# 💰 SpendShield — Policy & Authorization Layer for AI Payments
+# 💰 SpendShield — the layer between AI agents and your money
 
 > **Let AI agents spend real money — without spending it recklessly.**
+> One YAML policy. One `authorize()` call. Every payment decided, explained, and audited.
 
-SpendShield is the **policy and authorization layer** between AI agents and money. It is not a wallet and not a payment processor: it sits at `Agent ↔ Money` and decides **should this payment happen?** using deterministic, explainable rules. Payment providers (Stripe, x402, wallets, cards) stay downstream — SpendShield never holds your money.
+[**▶ 30-second live demo**](https://felixpg13-glitch.github.io/spendshield/demo.html) — watch an AI agent get stopped.
+
+SpendShield is not a wallet and not a payment processor. It sits at `Agent ↔ Money` and answers one question: **should this payment happen?** — with deterministic rules, a human-readable reason, and an audit trail you can verify. Payment providers (Stripe, x402, wallets) stay downstream; SpendShield never holds your money.
 
 ```text
-        HUMAN
-          │  delegation
-          ▼
-   AGENT IDENTITY ──► INTENT ──► POLICY ENGINE ──► RISK ──► AUTHORIZATION ──► APPROVAL
-                                                                              │
-                                                      Stripe / x402 / Wallet ◄─┘
-                                                                              │
-                                                                          REAL MONEY
-                                                                              │
-                                                                          AUDIT
+AGENT ──► SpendShield ──► ALLOW / APPROVAL / DENY ──► Stripe / x402 / Wallet
+              │                 │
+              └── why? ────────┘   (reason codes + audit hash chain)
 ```
 
-## 🩸 Why this project exists (a real incident)
+## ⚡ Quickstart — 5 minutes to running
 
-On August 9, 2026, my automation system ran a test order. I sent `dry: true`, expecting a price preview — the server only honored `?dry=1`. **4 orders of ¥99 were charged for real. The money was gone.**
+```bash
+pip install spendshield
+```
 
-This is not just my problem. AI agents are about to order food, top up accounts, and call paid APIs on your behalf. **When AI starts spending real money, who puts a gate in front of it?**
+**1. Write a policy** (`policy.yaml`):
 
-I turned my scar into a library.
+```yaml
+version: "2.0.0"
+policy:
+  budget:        { daily: 100, monthly: 1000 }   # hard ceilings
+  transaction:   { max: 50 }                     # per-payment cap
+  merchants:
+    allowed: [amazon.com, walmart.com]           # exact domain match
+    blocked: [scam-vip.com]
+  approval:      { over: 30, new_merchant: true, channel: tg }  # human sign-off
+agents:
+  shopping-agent:
+    transaction: { max: 50 }
+```
 
-## 🎯 Three-way decisions, not just allow/deny
-
-Every authorization returns a structured result — the *reason* is part of the product:
+**2. Gate your payment function**:
 
 ```python
 from spendshield import SpendShield
@@ -35,135 +43,66 @@ from spendshield import SpendShield
 shield = SpendShield()
 shield.load_policy("policy.yaml")
 
-result = shield.authorize(agent="shopping-agent", amount=75, to="amazon.com")
+@shield.protect("order", agent="shopping-agent")
+def place_order(amount, to):
+    return call_real_api(amount, to)   # denied / needs-approval raises before this runs
 ```
+
+Or use the result object directly:
+
+```python
+result = shield.authorize("shopping-agent", 2000, "scam-vip.com")
+print(result.decision)   # "DENY"
+print(result.reason)     # "merchant 'scam-vip.com' is blocked"
+```
+
+**3. Watch it work** (real engine output):
 
 ```
 ❌ DENY
-Reason: transaction $75.00 exceeds the $50.00 limit
-  - max_transaction: transaction $75.00 exceeds the $50.00 limit (block)
+Reason: merchant 'scam-vip.com' is blocked
+  - MERCHANT_BLOCKED: merchant 'scam-vip.com' is blocked (block)
+Policy version: 2.0.0
 ```
 
-| Decision | Meaning |
-|---|---|
-| ✅ **ALLOW** | Safe to pay. Budget is reserved. |
-| ⏸️ **APPROVAL** | Needs human sign-off. `shield.approve(id)` re-evaluates with current rules. |
-| ❌ **DENY** | Blocked, with structured `RuleHit`s explaining exactly why. |
+## 🤖 MCP Quickstart — let the agent manage itself
 
-## 📜 Policy DSL — rules as YAML
-
-One policy, one place. Agent rules override global rules (CSS-like merge):
-
-```yaml
-version: "2.0.0"
-policy:
-  budget:        { daily: 100, monthly: 1000 }
-  transaction:   { max: 50 }
-  merchants:
-    allowed: [amazon.com, walmart.com]      # exact domain match, subdomains ok
-    blocked: []
-  approval:      { over: 30, new_merchant: true, channel: tg }
-  rate_limit:    { window_s: 3600, max_calls: 5, max_total: 300 }
-
-agents:
-  shopping-agent:
-    transaction: { max: 50 }
+```bash
+pip install spendshield
+spendshield-mcp --policy policy.yaml     # stdio MCP server, 16 tools
 ```
 
-**Before spending, simulate — never touches money:**
+Claude Code / any MCP host gets: `spend_authorize`, `spend_approve`, `policy_sim`, `policy_apply`, `policy_create` → `policy_review` → `policy_lifecycle_apply`, `policy_rollback`… An agent can **ask "will this be denied?" before spending**, and humans approve the big ones.
 
-```python
-from spendshield.policy import PolicySimulator
+## 🧪 How it's tested (real money → real discipline)
 
-sim = PolicySimulator(policy_raw=policy)
-sim.sweep("shopping-agent", "amazon.com", [20, 30, 50, 51, 80])
-# {20: ALLOW, 30: ALLOW, 50: APPROVAL, 51: DENY, 80: DENY}
-```
-
-## 🛡️ Security Constitution — 8 invariants
-
-The whole system is built around invariants that **must never be violated**, no matter how the code evolves:
-
-1. Unauthorized → no payment
-2. Over budget → no payment (`spent <= budget` always)
-3. Approval mismatch → no payment
-4. Invalid identity → no payment
-5. Replay → at most one valid authorization
-6. Concurrency → never breaks budget
-7. Engine failure → deny by default (fail-closed)
-8. An agent cannot obtain the ability to bypass SpendShield
-
-V3+ layers (Intent, Risk) must not break these 8 rules.
-
-## 🧪 Tested like it guards real money
-
-- **186 tests**, all green — including **14 security/attack suites**
-- 8 attack surfaces: budget_bypass, race_condition, replay_attack, double_spend, policy_bypass, approval_bypass, parameter_tampering, credential_leak
-- **Security constitution tests** (the 8 invariants above, verified under fuzz + concurrency)
-- **Fuzzing**: thousands of random attack combinations, Money Invariant must hold
-- **Simulator ↔ real engine differential**: 800 random requests, decisions must match exactly
-- **Migration property tests**: random V1 configs migrate without breaking intent
-- Every discovered hole → fix → permanent regression test. Release discipline: any P0/P1 security bug blocks release. Before each release we ask: *"did this change give an attacker a new way to spend money?"*
-
-## 🧩 MCP — for AI agents themselves
-
-10 tools over stdio JSON-RPC (`python -m spendshield.mcp --policy policy.yaml`):
-
-`spend_authorize` / `spend_approve` / `spend_reject` / `policy_sim` / `policy_apply` / `spend_protect` / `spend_status` / `spend_audit` / `spend_reset` / `secret_get`
-
-## ⚠️ Threat model & known limits (transparent)
-
-- **MCP has no authentication** — trust your host. `policy_apply` / `spend_approve` are host-level operations.
-- **Approval IDs** are 48-bit random — a library trusts its caller.
-- **In-memory audit** can be modified by code with process access (append-only audit is on the V8 roadmap).
-- Denormal amounts (< 1e-9) are accepted but harmless (no money impact).
+- **218+ tests**, 14+ security suites: budget bypass, race conditions, replay, double-spend, parameter tampering, credential leaks…
+- **Security constitution — 8 invariants** that must never break: unauthorized → no payment · over budget → no payment · approval mismatch → no payment · invalid identity → no payment · replay → at most one authorization · concurrency → never breaks budget · engine failure → deny · agent can't bypass SpendShield
+- **Fuzz (random-seed soak)**: thousands of attack combinations per run, Money Invariant must hold
+- **Audit hash chain**: every decision is an event chained by hash — tamper with history and it's detected
+- Every discovered hole → permanent regression test. Release blocked on any P0/P1 security bug. Before each release we ask: *did this change give an attacker a new way to spend money?*
 
 ## 🗺️ Roadmap
 
 ```
-V1 prevent reckless spending ✅ → V2 Policy Engine ✅ → V2.1 Simulator ✅
-→ V2.2 Security Harness ✅ → engine switch ✅ → MCP ✅ → V2 Hardening 🔄
-→ V3 Intent Layer (anti prompt-injection) → V4 Risk Engine (deterministic → ML)
-→ V5 Agent Identity / Delegation (IAM) → V6 Payment Rails
-→ V7 Dashboard → V8 Enterprise
+V1 prevent reckless spending ✅ → V2 Policy Engine ✅ → V2.2 Security Harness ✅
+→ v0.7.2 Known-Good baseline ✅ → 0.8 Policy Lifecycle ✅ (CREATE→VALIDATE→SIMULATE→SCAN→REVIEW→APPLY→ROLLBACK)
+→ Reality Test (real agents, real money, real attacks) ← we are here
+→ V3 Intent Layer → V4 Risk → V5 IAM → V6 Payment Rails → 1.0
 ```
 
-**The metric that matters:** real agents protected, real transactions gated, real dollars saved. Not stars.
+**The metric that matters:** real agents protected, real transactions gated, real dollars saved — not stars.
 
-## 🚀 Quick start
+## 🩸 Why this exists (a real incident)
 
-```bash
-pip install spendshield
-```
+On August 9, 2026, my automation ran a test order. I sent `dry: true` expecting a price preview — the server only honored `?dry=1`. **4 orders of ¥99 were charged for real. The money was gone.** When AI starts spending real money, who puts a gate in front of it? I turned my scar into a library.
 
-```python
-from spendshield import SpendShield
+## ⚠️ Transparent threat model
 
-guard = SpendShield(dry_run=True)          # dry-run on by default
-guard.load_policy("examples/policy.v2.yaml")
-
-@guard.protect("order")
-def place_order(amount, to):
-    return call_real_api(amount, to)       # denied/needs-approval raises before this runs
-```
-
-V1-style constructor config still works — it is auto-migrated to the V2 engine:
-
-```python
-guard = SpendShield(budget=200, dry_run=True, whitelist=["McDonald's"])
-```
-
-## 🔑 Secret vault
-
-Keys encrypted at rest (Fernet), master key never on disk, key access passes the same gates and is fully audited:
-
-```python
-from spendshield import SpendShield, KeyVault
-
-vault = KeyVault("vault.json", master_key=os.environ["SPENDGUARD_MASTER_KEY"])
-guard = SpendShield(key_vault=vault, approval="console")
-sk = guard.get_secret("mcd_sk", agent="mcd_bot")   # gated + audited
-```
+- MCP has no auth — trust your host; `policy_apply` / `policy_review` are host-level operations
+- Approval IDs are 48-bit random — a library trusts its caller
+- In-memory audit (append-only on the roadmap)
+- **We are actively seeking real-world attacks**: [Reality Test](docs/REALITY_TEST.md) — challenge: *make a DENY turn into APPROVE*
 
 ---
 
