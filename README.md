@@ -168,7 +168,7 @@ SpendShield guards real money. Try to break it.
 - 🏅 First valid bypass per attack class gets credited in the [Security Hall of Fame](SECURITY.md).
 - 🔒 Every valid finding becomes a permanent regression test — this is how the gate gets stronger.
 
-**Current status:** 234 tests · 14 security suites · 0 known escapes.
+**Current status:** 240 tests · 16 security suites · **11,351 adversarial authorization attempts · 0 unintended ALLOW · 0 crashes** ([audit](tests/security/adversarial_10k.py)) · 0 known escapes.
 
 ## ⚠️ Transparent threat model
 

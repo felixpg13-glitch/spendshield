@@ -5,6 +5,7 @@ SpendShield 核心: 四道闸门实现
 from __future__ import annotations
 
 import functools
+import math
 import inspect
 import json
 import os
@@ -815,7 +816,24 @@ class SpendShield:
         from .policy import PaymentRequest as PR
         meta = dict(meta or {})
         meta.setdefault("request_id", uuid.uuid4().hex[:12])   # 全链关联(5 问可答)
-        req = PR(agent=agent or "", amount=float(amount), to=to, meta=meta)
+        # 入口防御: 畸形金额/收款方 → 结构化 DENY, 绝不抛异常(宪法: 故障默认拒绝)
+        agent_s = agent if isinstance(agent, str) else str(agent)
+        to_s = to if isinstance(to, str) else str(to)
+        if isinstance(amount, bool):
+            res = self._v2_result("DENY", f"invalid amount {amount!r}: boolean is not a valid amount", PR(agent=agent_s, amount=0, to=to_s, meta=meta))
+            self._record_v2(res, action=action or "authorize")
+            return res
+        try:
+            amount_f = float(amount)
+            if math.isnan(amount_f) or math.isinf(amount_f) or amount_f <= 0:
+                res = self._v2_result("DENY", f"invalid amount {amount!r}: must be a positive finite number", PR(agent=agent_s, amount=0, to=to_s, meta=meta))
+                self._record_v2(res, action=action or "authorize")
+                return res
+        except (TypeError, ValueError):
+            res = self._v2_result("DENY", f"invalid amount {amount!r}: not a number", PR(agent=agent_s, amount=0, to=to_s, meta=meta))
+            self._record_v2(res, action=action or "authorize")
+            return res
+        req = PR(agent=agent_s, amount=amount_f, to=to_s, meta=meta)
         # 身份闸门(与 V1 语义一致): 空 agent = 匿名, 走全局策略; 非空未注册 = 无效身份, 默认拒绝
         # (allow_unknown=True 时未注册身份回落全局策略)
         if agent and agent not in self._v2_agents and not self._v2_policy.allow_unknown:
