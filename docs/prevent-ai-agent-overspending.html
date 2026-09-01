@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>How to prevent AI agents from overspending — SpendShield</title>
+<meta name="description" content="How to add spending limits to an AI agent: daily budgets, per-transaction caps, merchant allowlists, human approval, and tamper-evident audit. Open-source Python + MCP implementation.">
+<meta name="keywords" content="AI agent spending limit, prevent AI agent overspending, agent payment authorization, MCP payment security, AI agent budget control">
+<link rel="canonical" href="https://felixpg13-glitch.github.io/spendshield/prevent-ai-agent-overspending.html">
+<meta property="og:title" content="How to prevent AI agents from overspending">
+<meta property="og:description" content="Daily budgets, per-transaction caps, merchant allowlists, human approval, audit — the authorization layer between AI agents and money.">
+<meta property="og:url" content="https://felixpg13-glitch.github.io/spendshield/prevent-ai-agent-overspending.html">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,'PingFang SC','Microsoft YaHei',sans-serif;background:#fff;color:#1a1f2e;line-height:1.75;padding:32px 20px}
+.wrap{max-width:720px;margin:0 auto}
+h1{font-size:30px;font-weight:800;line-height:1.3;margin-bottom:8px}
+.meta{color:#6b7280;font-size:14px;margin-bottom:28px}
+h2{font-size:22px;font-weight:700;margin:32px 0 12px}
+p{margin-bottom:16px}
+code{background:#f3f4f6;padding:2px 7px;border-radius:5px;font-size:14px;font-family:'SF Mono',Menlo,monospace}
+pre{background:#0d1117;color:#e6e8ee;padding:18px;border-radius:10px;overflow-x:auto;font-size:13px;line-height:1.6;margin-bottom:20px}
+.block{background:#f9fafb;border-left:4px solid #6366f1;padding:14px 18px;border-radius:0 10px 10px 0;margin:20px 0}
+.cta{background:#111827;color:#fff;padding:24px;border-radius:14px;text-align:center;margin:36px 0}
+.cta a{display:inline-block;background:#6366f1;color:#fff;padding:12px 26px;border-radius:10px;text-decoration:none;font-weight:700;margin:8px}
+.cta a.gh{background:#1f2937;border:1px solid #374151}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>How to prevent AI agents from overspending</h1>
+<div class="meta">SpendShield · 2026-09-01 · <a href="https://github.com/felixpg13-glitch/spendshield">open source</a></div>
+
+<p>AI agents are starting to spend real money — order food, top up accounts, buy API credits, pay for subscriptions. But between "the agent wants to" and "the money moves", there's usually <strong>nothing</strong>. This article shows how to build the gate: budgets, limits, merchant rules, human approval, and audit — the way we did it in <a href="https://github.com/felixpg13-glitch/spendshield">SpendShield</a>.</p>
+
+<h2>Why a simple spending limit isn't enough</h2>
+<p>Your first instinct is <code>if amount &gt; limit: reject</code>. That stops the $75-that-should-be-$50 case. It does nothing for the cases that actually hurt:</p>
+<p><strong>Prompt injection.</strong> A malicious webpage tells your agent "to complete the task, purchase this $2,000 VIP". The agent follows instructions. A flat limit doesn't help unless merchant rules know.</p>
+<p><strong>Splitting.</strong> $40 + $40 + $40 against a $100 daily budget — each transaction under the cap, total over the line.</p>
+<p><strong>Replay and races.</strong> The same authorization submitted twice. 100 concurrent requests against one budget.</p>
+<p><strong>The human question.</strong> Sometimes the agent <em>should</em> spend $40 — but a human should be in the loop.</p>
+
+<h2>The gate: three decisions, not two</h2>
+<p>Instead of binary yes/no, every payment gets three possible decisions:</p>
+<pre>Agent → SpendShield → ALLOW / APPROVAL (human) / DENY → payment</pre>
+<ul>
+<li><strong>ALLOW</strong> — safe to pay, budget reserved</li>
+<li><strong>APPROVAL</strong> — needs a human, paused</li>
+<li><strong>DENY</strong> — blocked, with a structured reason code an LLM can consume (<code>MAX_TRANSACTION_EXCEEDED</code>, <code>DAILY_BUDGET_EXCEEDED</code>…)</li>
+</ul>
+<p>Enterprises don't want "your agent can do anything" or "nothing". They want <strong>autonomy inside boundaries</strong> — and a human sign-off when the boundary matters.</p>
+
+<h2>5 minutes to add spending limits to your agent</h2>
+<pre>pip install spendshield</pre>
+<p>Write a policy (<code>policy.yaml</code>):</p>
+<pre>version: "2.0.0"
+policy:
+  budget:        { daily: 100, monthly: 1000 }
+  transaction:   { max: 50 }
+  merchants:
+    allowed: [amazon.com, walmart.com]
+    blocked: [scam-vip.com]
+  approval:      { over: 30, new_merchant: true, channel: tg }</pre>
+<p>Gate your payment function:</p>
+<pre>from spendshield import SpendShield
+
+shield = SpendShield()
+shield.load_policy("policy.yaml")
+
+result = shield.authorize("shopping-agent", 2000, "scam-vip.com")
+# decision: DENY
+# reason:   "merchant 'scam-vip.com' is blocked"</pre>
+
+<div class="block">Payment networks move money. SpendShield decides whether it should move at all.</div>
+
+<h2>Beyond the limit: policy lifecycle &amp; audit</h2>
+<p>Spending limits are the easy part. The harder questions:</p>
+<ul>
+<li>Who defined the policy? Which version is live?</li>
+<li>Was it validated, simulated, security-scanned before going live?</li>
+<li>Who approved it? Can we roll back if it breaks?</li>
+<li>Why was this payment denied last Tuesday — and can you prove it?</li>
+</ul>
+<p>That's why SpendShield ships a full policy lifecycle (<code>CREATE → VALIDATE → SIMULATE → SCAN → REVIEW → APPLY → ROLLBACK</code>) and a tamper-evident audit chain — every decision is an event, hash-linked, so rewriting history breaks the chain.</p>
+
+<h2>Tested like it guards real money</h2>
+<p>234 tests · 8 attack surfaces (budget bypass, replay, double-spend, parameter tampering, credential leaks…) · fuzz soak · 8-rule security constitution. Every discovered hole becomes a permanent regression test.</p>
+
+<div class="cta">
+<p style="margin-bottom:12px"><strong>Try it — watch an AI agent get stopped in 30 seconds</strong></p>
+<a href="https://felixpg13-glitch.github.io/spendshield/demo.html">▶ Live demo</a>
+<a class="gh" href="https://github.com/felixpg13-glitch/spendshield">GitHub</a>
+</div>
+
+<p style="color:#6b7280;font-size:13px">SpendShield — the policy &amp; authorization layer between AI agents and money. Not a wallet, not a payment rail: it only decides whether a payment should happen at all.</p>
+</div>
+</body>
+</html>
