@@ -1,6 +1,8 @@
-# 💰 SpendShield — the authorization layer between AI agents and real money
+# 💰 SpendShield — the policy control plane between AI agents and money
 
 > **Before your AI spends real money, it passes through SpendShield.**
+
+> *Not a wallet, not a payment rail — the authority layer: does this agent have the right to make this payment?*
 
 [![PyPI version](https://img.shields.io/pypi/v/spendshield)](https://pypi.org/project/spendshield/)
 [![Tests](https://img.shields.io/badge/tests-229%20passing-brightgreen)](https://github.com/felixpg13-glitch/spendshield/actions)
