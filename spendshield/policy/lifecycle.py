@@ -62,7 +62,7 @@ class PolicyManager:
         self._versions: dict[str, dict] = {}     # version -> policy dict
         self._applied_by: dict[str, str] = {}    # version -> 操作者
         # 登记当前生产策略为初始版本(回滚目标)
-        if guard._v2_policy:
+        if getattr(guard, "_v2_policy", None):
             p = guard._v2_policy
             raw = {"version": p.version, "policy": dataclasses.asdict(p)}
             self._versions[p.version] = raw

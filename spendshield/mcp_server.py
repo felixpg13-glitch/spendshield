@@ -75,6 +75,30 @@ TOOLS = [
                  "无参数返回当前策略摘要。策略变更会审计留痕",
                  {"policy": {"type": "string", "description": "V2 policy JSON(可选, 省略=查当前)"}},
                  []),
+    _tool_schema("policy_create", "0.8 生命周期: 创建策略草稿(状态=CREATED)。草稿须走 validate/simulate/scan/review 才能 apply",
+                 {"name": {"type": "string", "description": "草稿名"},
+                  "policy": {"type": "string", "description": "V2 policy JSON"},
+                  "by": {"type": "string", "description": "操作者"}},
+                 ["name", "policy"]),
+    _tool_schema("policy_stage", "0.8 生命周期: 一键验证草稿(validate+simulate+scan)。返回校验结果/模拟决策/安全扫描发现",
+                 {"draft_id": {"type": "string", "description": "policy_create 返回的 draft_id"},
+                  "by": {"type": "string", "description": "操作者"}},
+                 ["draft_id"]),
+    _tool_schema("policy_review", "0.8 生命周期: 人工评审草稿(必须指定审批人)。scan 有 blocker 时无法通过",
+                 {"draft_id": {"type": "string", "description": "policy_create 返回的 draft_id"},
+                  "by": {"type": "string", "description": "审批人(必填)"},
+                  "approve": {"type": "boolean", "description": "是否批准, 默认 true"}},
+                 ["draft_id", "by"]),
+    _tool_schema("policy_lifecycle_apply", "0.8 生命周期: 上线草稿(必须 REVIEWED)。Apply 是危险边界, 不可跳过评审",
+                 {"draft_id": {"type": "string", "description": "policy_create 返回的 draft_id"},
+                  "by": {"type": "string", "description": "操作者"}},
+                 ["draft_id"]),
+    _tool_schema("policy_rollback", "0.8 生命周期: 回滚到历史版本",
+                 {"version": {"type": "string", "description": "目标版本号"},
+                  "by": {"type": "string", "description": "操作者"}},
+                 ["version"]),
+    _tool_schema("policy_versions", "0.8 生命周期: 列出所有版本(含操作者)",
+                 {}, []),
 ]
 
 
@@ -126,6 +150,18 @@ class SpendShieldMCP:
             return self._policy_sim(args)
         if name == "policy_apply":
             return self._policy_apply(args)
+        if name == "policy_create":
+            return self._lifecycle_create(args)
+        if name == "policy_stage":
+            return self._lifecycle_stage(args)
+        if name == "policy_review":
+            return self._lifecycle_review(args)
+        if name == "policy_lifecycle_apply":
+            return self._lifecycle_apply(args)
+        if name == "policy_rollback":
+            return self._lifecycle_rollback(args)
+        if name == "policy_versions":
+            return {"ok": True, "versions": self.guard.policy_manager.versions()}
         raise ValueError(f"未知工具: {name}")
 
     def _protect(self, args: dict) -> dict:
@@ -262,6 +298,60 @@ class SpendShieldMCP:
             return {"ok": False, "reason": f"policy rejected: {str(e)[:200]}"}
         finally:
             os.unlink(path)
+
+    # ---------- 0.8 Policy Lifecycle 工具 ----------
+    def _lifecycle_create(self, args: dict) -> dict:
+        try:
+            raw = json.loads(args.get("policy", "{}")) if isinstance(args.get("policy"), str) else args.get("policy", {})
+            d = self.guard.policy_manager.create(args.get("name", "?"), raw, by=args.get("by", ""))
+            return {"ok": True, "draft_id": d.id, "state": d.state, "name": d.name}
+        except Exception as e:
+            return {"ok": False, "reason": str(e)[:200]}
+
+    def _lifecycle_stage(self, args: dict) -> dict:
+        pm = self.guard.policy_manager
+        did = args.get("draft_id", "")
+        by = args.get("by", "")
+        try:
+            v = pm.validate(did, by=by)
+            if not v["ok"]:
+                return {"ok": False, "stage": "validate", "errors": v["errors"]}
+            # 模拟用例: 优先用策略白名单商户(否则 example.com)
+            draft = pm.drafts[did]
+            allowed = (draft.policy.get("policy", {}).get("merchants", {}) or {}).get("allowed") or ["example.com"]
+            merchant = allowed[0] if isinstance(allowed, list) and allowed else "example.com"
+            s = pm.simulate(did, cases=[{"amount": 10, "to": merchant},
+                                        {"amount": 100, "to": merchant},
+                                        {"amount": 1000, "to": merchant}], by=by)
+            sc = pm.scan(did, by=by)
+            return {"ok": sc["ok"], "stage": "scan",
+                    "simulation": [{"case": r["case"], "decision": r["decision"]} for r in s["results"]],
+                    "findings": sc["findings"], "state": pm.drafts[did].state}
+        except Exception as e:
+            return {"ok": False, "reason": str(e)[:200]}
+
+    def _lifecycle_review(self, args: dict) -> dict:
+        try:
+            r = self.guard.policy_manager.review(args.get("draft_id", ""),
+                                                 by=args.get("by", ""),
+                                                 approve=bool(args.get("approve", True)))
+            return r
+        except Exception as e:
+            return {"ok": False, "reason": str(e)[:200]}
+
+    def _lifecycle_apply(self, args: dict) -> dict:
+        try:
+            r = self.guard.policy_manager.apply(args.get("draft_id", ""), by=args.get("by", ""))
+            return r
+        except Exception as e:
+            return {"ok": False, "reason": str(e)[:200]}
+
+    def _lifecycle_rollback(self, args: dict) -> dict:
+        try:
+            r = self.guard.policy_manager.rollback(args.get("version", ""), by=args.get("by", ""))
+            return r
+        except Exception as e:
+            return {"ok": False, "reason": str(e)[:200]}
 
     # ---------- JSON-RPC 分发 ----------
     def handle(self, line: str) -> str | None:

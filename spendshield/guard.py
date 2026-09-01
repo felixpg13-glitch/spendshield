@@ -14,6 +14,7 @@ from dataclasses import dataclass, field, asdict
 from typing import Any, Callable, Optional
 
 from .audit import AuditLog
+from .policy.lifecycle import PolicyManager
 
 try:  # V2 Policy Engine(可选依赖, 旧环境无 policy/ 包也能 import guard)
     from .policy import (
@@ -121,6 +122,7 @@ class SpendShield:
         self._spent = 0.0
         self.records: list[AuditRecord] = []
         self.audit = AuditLog()          # 可追责证据层(哈希链, 5 问可答)
+        self.policy_manager = PolicyManager(self)   # 0.8 策略生命周期治理
         self._agents: dict[str, dict] = {}
         self._agent_spent: dict[str, float] = {}
         self.allow_unknown = allow_unknown
@@ -467,6 +469,10 @@ class SpendShield:
             for w in (whitelist or []):
                 self._v2_estate.trusted_prefixes.add(str(w).lower())
             self._v2_policy_fp = self._policy_fp()
+            # 0.8 生命周期: 同步登记生产版本(回滚目标)
+            if hasattr(self, "policy_manager") and self._v2_policy:
+                v = self._v2_policy.version
+
 
     def _agent_policy(self, agent_id: str) -> dict:
         """解析 Agent 身份: 未注册默认拒绝(安全默认), allow_unknown=True 回落全局策略"""
@@ -783,6 +789,14 @@ class SpendShield:
             self.approve_new_recipient = bool(self._v2_policy.approval.new_merchant)
             self.approve_above = float(self._v2_policy.approval.over)
             self._v2_policy_fp = self._policy_fp()
+            # 0.8 生命周期: 同步登记生产版本(回滚目标)
+            if hasattr(self, "policy_manager") and self._v2_policy:
+                import dataclasses as _dc
+                _v = self._v2_policy.version
+                if _v not in self.policy_manager._versions:
+                    self.policy_manager._versions[_v] = {"version": _v,
+                                                         "policy": _dc.asdict(self._v2_policy)}
+                    self.policy_manager._applied_by[_v] = "(initial)" 
         for trusted in raw.get("_trusted_from_v1", []):   # 旧 whitelist → 预信任(子串语义)
             self._v2_estate.known_recipients.add(trusted)
             self._v2_estate.trusted_prefixes.add(trusted)
