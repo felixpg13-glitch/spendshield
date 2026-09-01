@@ -401,11 +401,20 @@ class SpendShield:
 
     @staticmethod
     def _extract_amount(fn: Callable, args: tuple, kwargs: dict) -> float:
-        """从参数里找金额: 优先显式 amount=, 其次参数名含 amount/price/cost/价"""
+        """从参数里找金额: 显式 amount= > 精确参数名 > 模糊匹配(防 amount_limit 误提取)"""
         if "amount" in kwargs:
             return float(kwargs["amount"])
         sig = inspect.signature(fn)
         names = list(sig.parameters.keys())
+        # 1) 精确参数名(防 amount_limit/price_cap 被误当金额)
+        for exact in ("amount", "price", "cost"):
+            if exact in names:
+                i = names.index(exact)
+                if i < len(args):
+                    return float(args[i])
+                if exact in kwargs:
+                    return float(kwargs[exact])
+        # 2) 模糊(含 amount/price/cost 的参数名)
         for i, nm in enumerate(names):
             if any(k in nm.lower() for k in ("amount", "price", "cost")):
                 if i < len(args):
@@ -651,8 +660,7 @@ class SpendShield:
             "transaction": {"max": float(aconf.get("max_amount", 0) or 0), "min": 0},
             "merchants": {"allowed": [],
                           "blocked": [str(x).lower() for x in (aconf.get("blacklist") or [])]},
-            "approval": {"over": 0, "new_merchant": False,
-                         "channel": SpendShield._channel_of(aconf.get("approval"))},
+            "approval": {"channel": SpendShield._channel_of(aconf.get("approval"))},
             "rate_limit": {"window_s": int(arl.get("window_s", 3600)),
                            "max_calls": int(arl.get("max_calls", 0) or 0),
                            "max_total": float(arl.get("max_total", 0) or 0)},
@@ -723,12 +731,23 @@ class SpendShield:
         """加载 V2 policy(新格式或迁移后), 校验失败抛异常"""
         if v2_load_policy is None:  # pragma: no cover
             raise RuntimeError("V2 policy engine not available (policy/ package missing)")
-        self._v2_policy = v2_load_policy(raw)
-        self._v2_agents = raw.get("agents", {}) or {}
-        # 策略变更: 挂起审批全部作废(防宽松窗口挂单 → 收紧后花钱)
-        if self._v2_estate is not None:
-            self._v2_estate.pending.clear()
-        self._v2_policy_fp = self._policy_fp()
+        with self._v2_lock:
+            self._v2_policy = v2_load_policy(raw)
+            self._v2_agents = raw.get("agents", {}) or {}
+            # 策略变更: 挂起审批全部作废(防宽松窗口挂单 → 收紧后花钱)
+            if self._v2_estate is not None:
+                self._v2_estate.pending.clear()
+            # V2 名单同步到旧层(get_secret 等旧闸门路径同样受 V2 黑/白名单约束)
+            for b in self._v2_policy.merchants.blocked:
+                if b not in self.blacklist:
+                    self.blacklist.append(b)
+            for t in self._v2_estate.trusted_prefixes:
+                if t not in self.whitelist:
+                    self.whitelist.append(t)
+            # 审批语义同步到旧层(get_secret 等旧闸门路径一致)
+            self.approve_new_recipient = bool(self._v2_policy.approval.new_merchant)
+            self.approve_above = float(self._v2_policy.approval.over)
+            self._v2_policy_fp = self._policy_fp()
         for trusted in raw.get("_trusted_from_v1", []):   # 旧 whitelist → 预信任(子串语义)
             self._v2_estate.known_recipients.add(trusted)
             self._v2_estate.trusted_prefixes.add(trusted)

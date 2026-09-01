@@ -214,7 +214,8 @@ class AgentPolicy:
             approval=ApprovalRule(
                 over=float(a.get("over", global_p.approval.over)),
                 new_merchant=a.get("new_merchant", global_p.approval.new_merchant),
-                channel=a.get("channel", global_p.approval.channel) or "",
+                # channel 空值回退全局(agent 未配通道时继承全局通道)
+                channel=a.get("channel") or global_p.approval.channel or "",
             ),
             rate_limit=RateLimitRule(
                 window_s=int(r.get("window_s", global_p.rate_limit.window_s)),

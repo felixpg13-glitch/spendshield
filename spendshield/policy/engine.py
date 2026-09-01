@@ -144,7 +144,7 @@ def evaluate(req: PaymentRequest, policy: Policy, state: EngineState,
         if policy.approval.over > 0 and req.amount > policy.approval.over:
             need_approval, approval_reason = True, f"amount ${req.amount:.2f} exceeds the ${policy.approval.over:.2f} approval threshold"
         elif policy.approval.new_merchant and nm not in state.known_recipients and not whitelisted \
-            and not any(tp in nm for tp in state.trusted_prefixes):
+            and not _is_trusted(nm, state.trusted_prefixes):
             # 白名单商户视为可信, 跳过新商户审批(但 over 阈值仍生效)
             need_approval, approval_reason = True, f"new merchant '{req.to}' requires approval"
         if need_approval:
@@ -165,6 +165,19 @@ def evaluate(req: PaymentRequest, policy: Policy, state: EngineState,
                                 "warn", f"{label} at ${cur + req.amount:.2f}, limit ${rule_obj:.2f}"))
             break
     return _finish("ALLOW", req, policy, hits)
+
+
+def _is_trusted(nm: str, trusted_prefixes: set) -> bool:
+    """信任判断: 含 '.' 的信任项(域)用边界匹配(amazon.com 匹配 checkout.amazon.com, 不匹配 notamazon.com);
+    否则(中文商户名)保留子串语义(V1 whitelist 兼容)。"""
+    for tp in trusted_prefixes:
+        if "." in tp:
+            if nm == tp or nm.endswith("." + tp):
+                return True
+        else:
+            if tp in nm:
+                return True
+    return False
 
 
 def _finish(decision: str, req: PaymentRequest, policy: Policy, hits: list[RuleHit]) -> AuthorizationResult:

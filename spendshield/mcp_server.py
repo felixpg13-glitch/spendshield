@@ -134,15 +134,18 @@ class SpendShieldMCP:
         to = args.get("to", "?")
         agent = args.get("agent", "")
         try:
-            # 手动走闸门(不依赖装饰器): dry_run/黑名单/频率/预算/确认
-            ok = self.guard._authorize(action, amount, to, agent)
-            if not ok:
-                return {"ok": False, "reason": "审批被拒",
+            # V2 授权评估(book=False, 执行后由 book 记账, 与 V2 state 同步)
+            res = self.guard.authorize(agent, amount, to, action=action, book=False)
+            if res.decision == "DENY":
+                return {"ok": False, "decision": "DENY", "reason": res.reason,
                         "spent": self.guard.spent}
-            self.guard._spent += amount
-            if agent:
-                self.guard._agent_spent[agent] = self.guard._agent_spent.get(agent, 0.0) + amount
-            self.guard._known_recipients.add(to.lower())
+            if res.decision == "APPROVAL":
+                return {"ok": False, "decision": "APPROVAL",
+                        "reason": res.reason, "approval_id": res.approval_id,
+                        "hint": f"需审批: 调 spend_approve approval_id={res.approval_id}",
+                        "spent": self.guard.spent}
+            # ALLOW → 执行后记账(同步 V2 state + 旧层)
+            self.guard.book(agent=agent, amount=amount, to=to)
             self.guard._record(action=action, amount=amount, to=to, agent=agent,
                                decision="executed", reason="mcp 调用通过",
                                spent_after=self.guard.spent)
