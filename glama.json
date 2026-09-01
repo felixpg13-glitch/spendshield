@@ -1,9 +1,16 @@
 {
   "$schema": "https://glama.ai/mcp/schemas/server.json",
-  "maintainers": ["felixpg13-glitch"],
+  "maintainers": [
+    "felixpg13-glitch"
+  ],
   "displayName": "SpendShield",
-  "description": "Policy & authorization layer for AI agent spending. Three-way decisions (ALLOW / APPROVAL / DENY) with explainable reason codes, policy lifecycle (validate → simulate → scan → review → apply → rollback), tamper-evident audit chain. Channel-agnostic — works with Stripe, x402, wallets. 240+ tests, 8 attack surfaces defended.",
-  "categories": ["Security", "Payments", "Financial", "Guardrails"],
+  "description": "Policy & authorization layer for AI agent spending — try it in 60 seconds (no API key): colab.research.google.com/github/felixpg13-glitch/spendshield/blob/main/examples/quickstart.ipynb. Three-way decisions (ALLOW / APPROVAL / DENY) with reasons, budget & merchant policies, tamper-evident audit, policy versioning & rollback, MCP server.",
+  "categories": [
+    "Security",
+    "Payments",
+    "Financial",
+    "Guardrails"
+  ],
   "relatedServers": [
     "x402-foundation/x402",
     "modelcontextprotocol/servers",
