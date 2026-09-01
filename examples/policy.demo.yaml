@@ -1,0 +1,22 @@
+# SpendShield demo policy — 用于 Claude Desktop 演示
+# $25 → ALLOW(白名单商户 + 限额内)
+# $75 → DENY(超单笔上限)
+# 陌生商户 → APPROVAL(需人工确认)
+version: "2.1.0"
+policy:
+  budget:
+    daily: 100
+  transaction:
+    max: 50
+  merchants:
+    allowed:
+      - amazon.com
+      - mcdonalds.com
+      - stripe.com
+      - openai.com
+    blocked:
+      - scam-vip.com
+  approval:
+    over: 30        # 超 $30 需审批(演示三态)
+    new_merchant: false   # 白名单外的新商户需审批
+    channel: ""
