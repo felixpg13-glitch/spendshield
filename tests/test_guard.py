@@ -351,7 +351,7 @@ def test_intent_new_recipient_denied_no_channel():
         pass
     assert guard.spent == 0
     assert guard.records[-1].decision == "blocked_approval"
-    assert "未配置审批通道" in guard.records[-1].reason
+    assert "approval" in guard.records[-1].reason.lower()   # 文案随引擎统一为英文, decision 是契约
     print("✅ intent: 新收款方无审批通道 → 默认拒绝")
 
 

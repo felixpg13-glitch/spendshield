@@ -101,9 +101,14 @@ def evaluate(req: PaymentRequest, policy: Policy, state: EngineState,
         return _finish("DENY", req, policy, hits)
 
     # ── 5. gate_budget(含本轮) ────────────────────────────────────────────
-    if policy.budget.total > 0 and state.spent_total + req.amount > policy.budget.total:
-        hits.append(RuleHit("total_budget", ">", policy.budget.total, state.spent_total + req.amount,
-                            "block", f"total spent ${state.spent_total:.2f} + ${req.amount:.2f} exceeds the ${policy.budget.total:.2f} total budget"))
+    # 累计基数: agent 自己写了 budget → 用该 agent 的累计(隔离); 继承全局 → 用全局累计
+    if policy.budget_owner == "agent" and req.agent:
+        spent_total = state.spent_by_agent.get(req.agent, 0.0)
+    else:
+        spent_total = state.spent_total
+    if policy.budget.total > 0 and spent_total + req.amount > policy.budget.total:
+        hits.append(RuleHit("total_budget", ">", policy.budget.total, spent_total + req.amount,
+                            "block", f"total spent ${spent_total:.2f} + ${req.amount:.2f} exceeds the ${policy.budget.total:.2f} total budget"))
         return _finish("DENY", req, policy, hits)
     if policy.budget.daily > 0 and state.spent_daily.get(day, 0.0) + req.amount > policy.budget.daily:
         hits.append(RuleHit("daily_budget", ">", policy.budget.daily, state.spent_daily.get(day, 0.0) + req.amount,
@@ -138,7 +143,8 @@ def evaluate(req: PaymentRequest, policy: Policy, state: EngineState,
     if not approval_granted:
         if policy.approval.over > 0 and req.amount > policy.approval.over:
             need_approval, approval_reason = True, f"amount ${req.amount:.2f} exceeds the ${policy.approval.over:.2f} approval threshold"
-        elif policy.approval.new_merchant and nm not in state.known_recipients and not whitelisted:
+        elif policy.approval.new_merchant and nm not in state.known_recipients and not whitelisted \
+            and not any(tp in nm for tp in state.trusted_prefixes):
             # 白名单商户视为可信, 跳过新商户审批(但 over 阈值仍生效)
             need_approval, approval_reason = True, f"new merchant '{req.to}' requires approval"
         if need_approval:

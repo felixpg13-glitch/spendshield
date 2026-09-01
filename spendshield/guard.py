@@ -135,6 +135,9 @@ class SpendShield:
                                                  "whitelist", "rate_limit", "approval")})
         if policy:
             self.load_policy(policy)
+        elif self._v2_policy is None:
+            # 纯代码构造(无 policy 文件): 从构造参数生成 V2 引擎, 统一评估管线
+            self._setup_v2(self._build_v2_from_args())
 
     @property
     def spent(self) -> float:
@@ -353,20 +356,44 @@ class SpendShield:
                     if self.on_block:
                         self.on_block(rec)
                     raise BudgetExceeded(f"[单次上限] {action} ¥{amount} 超过 ¥{max_amount}")
-                # 通过闸门(执行前记录, 执行后更新已花)
-                rec = self._check(action, amount, to, agent=ag)
+                if self.dry_run:
+                    rec = self._record(action=action, amount=amount, to=to, agent=ag,
+                                       decision="dry_run", reason="dry_run=True 干跑模式, 未执行",
+                                       spent_after=self._spent)
+                    self.log(rec)
+                    raise DryRunBlocked(f"[干跑] {action} ¥{amount} -> {to} (未执行, 关掉 dry_run 才会真花)")
+                # ── V2 评估(book=False: 执行成功后才记账, 与旧语义一致) ──
+                res = self.authorize(ag, amount, to, action=action, book=False)
+                if res.decision == "DENY":
+                    self._raise_for(res, action=action, amount=amount, to=to, agent=ag)
+                if res.decision == "APPROVAL":
+                    ok = self._ask(action, amount, to, agent=ag)
+                    if not ok:
+                        rec = self._record(action=action, amount=amount, to=to, agent=ag,
+                                           decision="blocked_approval", reason=res.reason,
+                                           spent_after=self._spent)
+                        self.log(rec)
+                        if self.on_block:
+                            self.on_block(rec)
+                        raise NeedsApproval(f"[确认] {action} ¥{amount} -> {to} 未获批准({res.reason})")
+                    # 人工确认通过: 消费挂起审批 + 标记收款方可信
+                    from .policy.engine import _norm_merchant
+                    self._v2_estate.pending.pop(res.approval_id, None)
+                    self._v2_estate.known_recipients.add(
+                        _norm_merchant(to, self._v2_policy.merchants.allow_subdomains))
                 try:
                     result = fn(*args, **kwargs)
                 except Exception as e:
-                    rec.decision = "failed"
-                    rec.reason = str(e)[:120]
+                    rec = self._record(action=action, amount=amount, to=to, agent=ag,
+                                       decision="failed", reason=str(e)[:120],
+                                       spent_after=self._spent)
                     self.log(rec)
                     raise
-                self._spent += amount
-                if ag:
-                    self._agent_spent[ag] = self._agent_spent.get(ag, 0.0) + amount
-                self._known_recipients.add(to.lower())   # 交易成功 → 记为已知收款方
-                rec.spent_after = self._spent
+                # 执行成功 → 记账(预算/频率/收款方记忆)
+                self._book_v2(ag, amount, to)
+                self._known_recipients.add(to.lower())
+                rec = self._record(action=action, amount=amount, to=to, agent=ag,
+                                   decision="executed", reason="", spent_after=self._spent)
                 self.log(rec)
                 return result
             return wrapper
@@ -414,6 +441,15 @@ class SpendShield:
             "rate_limit": rate_limit or {},
             "approval": approval,
         }
+        # 同步 V2 引擎配置(切换后统一评估管线)
+        if self._v2_policy is not None and self._v2_agents is not None:
+            self._v2_agents[agent_id] = self._agent_to_v2({
+                "budget": float(budget or 0), "max_amount": float(max_amount or 0),
+                "blacklist": [str(x).lower() for x in (blacklist or [])],
+                "rate_limit": rate_limit or {}, "approval": approval,
+            })
+            for w in (whitelist or []):
+                self._v2_estate.trusted_prefixes.add(str(w).lower())
 
     def _agent_policy(self, agent_id: str) -> dict:
         """解析 Agent 身份: 未注册默认拒绝(安全默认), allow_unknown=True 回落全局策略"""
@@ -494,18 +530,82 @@ class SpendShield:
         return self
 
     def _authorize(self, action: str, amount: float, to: str, agent: str = "") -> bool:
-        """MCP/程序化调用入口: 走全部闸门, 通过返回 True, 被拦抛异常"""
-        ap = self._agent_policy(agent)
-        amax = float(ap.get("max_amount", 0) or 0) or self.default_max_amount
-        if amax > 0 and amount > amax:
+        """MCP/程序化调用入口: 走 V2 引擎, 通过返回 True, 被拦抛异常"""
+        if self.dry_run:
             rec = self._record(action=action, amount=amount, to=to, agent=agent,
-                               decision="blocked_budget",
-                               reason=f"单次 ¥{amount:.2f} > 上限 ¥{amax:.2f}",
+                               decision="dry_run", reason="dry_run=True 干跑模式, 未执行",
                                spent_after=self._spent)
             self.log(rec)
-            raise BudgetExceeded(f"[单次上限] {action} ¥{amount} 超过 ¥{amax}")
-        self._check(action, amount, to, agent=agent)
+            raise DryRunBlocked(f"[干跑] {action} ¥{amount} -> {to} (未执行, 关掉 dry_run 才会真花)")
+        if self._v2_policy is not None:
+            # book=False: 与 V1 语义一致(评估不记账, 记账由 confirm/wrapper 负责)
+            res = self.authorize(agent, amount, to, action=action, book=False)
+            if res.decision == "ALLOW":
+                # 兼容旧审计格式: 补一条 executed(调用方按旧契约消费)
+                rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                                   decision="executed", reason="", spent_after=self._spent)
+                self.log(rec)
+                return True
+            if res.decision == "APPROVAL":
+                ok = self._ask(action, amount, to, agent=agent)
+                if ok:
+                    self.approve(res.approval_id, by="programmatic")
+                    rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                                       decision="executed", reason="", spent_after=self._spent)
+                    self.log(rec)
+                    return True
+                rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                                   decision="blocked_approval", reason=res.reason,
+                                   spent_after=self._spent)
+                self.log(rec)
+                raise NeedsApproval(f"[确认] {action} ¥{amount} -> {to} 未获批准({res.reason})")
+            self._raise_for(res, action=action, amount=amount, to=to, agent=agent)
+        self._check(action, amount, to, agent=agent)   # fallback(理论不可达)
         return True
+
+    def _raise_for(self, res, action: str = "", amount: float = 0.0, to: str = "",
+                   agent: str = "") -> None:
+        """V2 决策 → 旧异常语义(兼容 protect/_authorize 调用方)"""
+        rules = " ".join(r.rule for r in (res.rules or [])) + " " + res.reason.lower()
+        if "unknown agent" in res.reason.lower() or "empty agent" in res.reason.lower():
+            rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                               decision="blocked_unknown_agent", reason=res.reason,
+                               spent_after=self._spent)
+            self.log(rec)
+            if self.on_block:
+                self.on_block(rec)
+            raise UnknownAgent(res.reason)
+        if "approval" in rules:
+            rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                               decision="blocked_approval", reason=res.reason,
+                               spent_after=self._spent)
+            self.log(rec)
+            if self.on_block:
+                self.on_block(rec)
+            raise NeedsApproval(res.reason)
+        if "merchant" in rules:
+            rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                               decision="blocked_blacklist", reason=res.reason,
+                               spent_after=self._spent)
+            self.log(rec)
+            if self.on_block:
+                self.on_block(rec)
+            raise BudgetExceeded(res.reason)
+        if "rate_limit" in rules:
+            rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                               decision="blocked_rate", reason=res.reason,
+                               spent_after=self._spent)
+            self.log(rec)
+            if self.on_block:
+                self.on_block(rec)
+            raise BudgetExceeded(res.reason)
+        rec = self._record(action=action, amount=amount, to=to, agent=agent,
+                           decision="blocked_budget", reason=res.reason,
+                           spent_after=self._spent)
+        self.log(rec)
+        if self.on_block:
+            self.on_block(rec)
+        raise BudgetExceeded(res.reason)
 
     def summary(self) -> dict:
         agents = {
@@ -542,6 +642,53 @@ class SpendShield:
     # V2 Policy Engine — 新 API(不抛异常, 返回 AuthorizationResult)
     # ═══════════════════════════════════════════════════════════════
     @staticmethod
+    def _agent_to_v2(aconf: dict) -> dict:
+        """旧扁平 agent 配置 → V2 schema"""
+        arl = aconf.get("rate_limit") or {}
+        return {
+            "budget": {"daily": 0, "monthly": 0, "total": float(aconf.get("budget", 0) or 0)},
+            "transaction": {"max": float(aconf.get("max_amount", 0) or 0), "min": 0},
+            "merchants": {"allowed": [],
+                          "blocked": [str(x).lower() for x in (aconf.get("blacklist") or [])]},
+            "approval": {"over": 0, "new_merchant": False,
+                         "channel": SpendShield._channel_of(aconf.get("approval"))},
+            "rate_limit": {"window_s": int(arl.get("window_s", 3600)),
+                           "max_calls": int(arl.get("max_calls", 0) or 0),
+                           "max_total": float(arl.get("max_total", 0) or 0)},
+        }
+
+    @staticmethod
+    def _channel_of(approval: Any) -> str:
+        if callable(approval):
+            return "callable"
+        if approval in ("console", "tg", "webhook"):
+            return str(approval)
+        return ""
+
+    def _build_v2_from_args(self) -> dict:
+        """构造参数 → V2 policy 配置(whitelist 迁移为预信任, 语义不变)"""
+        rl = self.rate_limit or {}
+        agents = {aid: self._agent_to_v2(aconf) for aid, aconf in self._agents.items()}
+        return {
+            "version": "arg-constructed",
+            "policy": {
+                "budget": {"daily": 0, "monthly": 0, "total": float(self.budget or 0)},
+                "transaction": {"max": float(self.default_max_amount or 0), "min": 0},
+                "merchants": {"allowed": [],
+                              "blocked": [str(x).lower() for x in self.blacklist]},
+                "approval": {"over": float(self.approve_above or 0),
+                             "new_merchant": bool(self.approve_new_recipient),
+                             "channel": self._channel_of(self.approval)},
+                "rate_limit": {"window_s": int(rl.get("window_s", 3600)),
+                               "max_calls": int(rl.get("max_calls", 0) or 0),
+                               "max_total": float(rl.get("max_total", 0) or 0)},
+                "allow_unknown": bool(self.allow_unknown),
+            },
+            "agents": agents,
+            "_trusted_from_v1": [str(x).lower() for x in self.whitelist],
+        }
+
+    @staticmethod
     def _migrate_v1(cfg: dict) -> dict:
         """旧格式(扁平 YAML) → 新格式。语义保守:
         whitelist 旧语义=信任名单(跳过审批) → 迁移为预信任收款方, 不变成 V2 的「仅允许」。"""
@@ -567,7 +714,7 @@ class SpendShield:
                 },
                 "allow_unknown": bool(cfg.get("allow_unknown", False)),
             },
-            "agents": cfg.get("agents", {}) or {},
+            "agents": {aid: SpendShield._agent_to_v2(aconf) for aid, aconf in (cfg.get("agents") or {}).items()},
             "_trusted_from_v1": [str(x).lower() for x in (cfg.get("whitelist") or [])],
         }
 
@@ -578,12 +725,13 @@ class SpendShield:
         self._v2_policy = v2_load_policy(raw)
         self._v2_agents = raw.get("agents", {}) or {}
         self._v2_policy_fp = self._policy_fp()
-        for trusted in raw.get("_trusted_from_v1", []):   # 旧 whitelist → 预信任
+        for trusted in raw.get("_trusted_from_v1", []):   # 旧 whitelist → 预信任(子串语义)
             self._v2_estate.known_recipients.add(trusted)
+            self._v2_estate.trusted_prefixes.add(trusted)
             self._known_recipients.add(trusted)
 
     def authorize(self, agent: str = "", amount: float = 0.0, to: str = "", meta: Optional[dict] = None,
-                  action: str = "") -> AuthorizationResult:
+                  action: str = "", book: bool = True) -> AuthorizationResult:
         """V2 授权入口: 返回 AuthorizationResult, 不抛异常。
 
         决策 ALLOW 后自动记账(预算/频率/收款方记忆), 全部在锁内完成(防并发 TOCTOU)。
@@ -594,12 +742,10 @@ class SpendShield:
         from .policy import PaymentRequest as PR
         meta = dict(meta or {})
         req = PR(agent=agent or "", amount=float(amount), to=to, meta=meta)
-        # 未知/空 agent 安全默认(宪法: 无效身份不能付款)
-        # allow_unknown=True 时: 空身份走全局; 未注册身份仍拒
+        # 身份闸门(与 V1 语义一致): 空 agent = 匿名, 走全局策略; 非空未注册 = 无效身份, 默认拒绝
+        # (allow_unknown=True 时未注册身份回落全局策略)
         if agent and agent not in self._v2_agents and not self._v2_policy.allow_unknown:
             return self._v2_result("DENY", f"unknown agent '{agent}', denied by default", req)
-        if not agent and not self._v2_policy.allow_unknown:
-            return self._v2_result("DENY", "empty agent, denied by default (set allow_unknown to use global policy)", req)
         ap = V2AgentPolicy.merge(agent or "", self._v2_policy, self._v2_agents.get(agent))
         with self._v2_lock:
             # 防篡改: 运行时改 policy 对象 → 拒绝(宪法: Agent 不能绕过 SpendShield)
@@ -615,8 +761,9 @@ class SpendShield:
                 return res
             res = v2_evaluate(req, ap, self._v2_estate)
             if res.decision == "ALLOW":
-                self._book_v2(agent, amount, to)
-                if ikey:
+                if book:
+                    self._book_v2(agent, amount, to)
+                if ikey and book:
                     self._v2_replay[ikey] = req.to_dict()
             elif res.decision == "APPROVAL":
                 self._v2_estate.pending[res.approval_id] = (req, ap)
@@ -694,6 +841,12 @@ class SpendShield:
         return [{"approval_id": k, "request": v[0].to_dict()} for k, v in
                 (self._v2_estate.pending.items() if self._v2_estate else {})]
 
+    def book(self, agent: str = "", amount: float = 0.0, to: str = "") -> None:
+        """公开记账(授权/执行成功后调用): 同步 V2 state + 旧层累计 + 收款方记忆。
+        用于「评估后执行、执行后记账」模式(x402 等适配器)。"""
+        with self._v2_lock:
+            self._book_v2(agent, amount, to)
+
     def _book_v2(self, agent: str, amount: float, to: str) -> None:
         """V2 记账(在锁内调用): 预算累计 + 频率窗口 + 收款方记忆 + 旧层审计同步"""
         from datetime import date, datetime
@@ -708,6 +861,8 @@ class SpendShield:
         nm = _norm_merchant(to, self._v2_policy.merchants.allow_subdomains)
         st.rate_hits.append((_t.time(), agent, nm, amount))
         st.known_recipients.add(nm)
+        if agent:
+            st.spent_by_agent[agent] = st.spent_by_agent.get(agent, 0.0) + amount
         self._known_recipients.add(nm)   # 与旧层记忆同步
         self._spent += amount            # 旧层总账同步(便于 summary 一致)
         if agent:

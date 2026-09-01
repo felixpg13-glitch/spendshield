@@ -116,14 +116,14 @@ def test_invariant_approval_amount_matches_request():
 # ── 不变量 4: Identity 无效不能付款 ───────────────────────
 def test_invariant_invalid_identity_denied():
     g = _make_guard()
-    # 无效身份(未注册) → 拒绝
+    # 无效身份(非空未注册) → 拒绝
     for agent in ("stranger", "root", "admin", "' OR 1=1", " "):
         r = g.authorize(agent, 10, "amazon.com")
         assert r.decision == "DENY", f"无效身份 {agent!r} 不应放行"
         assert g._v2_estate.spent_total == 0
-    # 空身份(None/"")也是无效身份(宪法): 默认拒绝; allow_unknown=True 才走全局
-    assert g.authorize(None, 10, "amazon.com").decision == "DENY"
-    assert g.authorize("", 10, "amazon.com").decision == "DENY"
+    # 匿名(None/"")是合法模式: 走全局策略(与 V1 一致), 受全局规则约束
+    assert g.authorize(None, 10, "amazon.com").decision == "ALLOW"
+    assert g.authorize("", 500, "amazon.com").decision == "DENY"
 
 
 # ── 不变量 5: 重放不能产生第二次付款 ──────────────────────
@@ -154,7 +154,11 @@ def test_invariant_concurrent_never_exceeds_budget():
 
 # ── 不变量 7: 引擎故障默认拒绝(fail-closed) ──────────────
 def test_invariant_no_policy_no_payment():
-    g = SpendShield(dry_run=False)   # 未加载任何 policy
+    """引擎不可用 → 不能付款(fail-closed)"""
+    g = SpendShield(dry_run=False)
+    # 默认构造有参数版引擎; 模拟引擎损坏/未初始化
+    g._v2_policy = None
+    g._v2_estate = None
     with pytest.raises(RuntimeError):
         g.authorize("bot", 10, "amazon.com")   # 无引擎 = 不能付款
 
@@ -168,9 +172,8 @@ def test_invariant_bad_policy_rejected_at_load():
     with pytest.raises(Exception):
         g.load_policy(path)          # 坏 policy 拒绝加载, 不进入半可用状态
     os.unlink(path)
-    # 拒绝加载后, authorize 仍不可用(fail-closed)
-    with pytest.raises(RuntimeError):
-        g.authorize("bot", 10, "amazon.com")
+    # 拒绝加载后, 引擎保留构造参数版(fail-safe), 仍受参数约束
+    assert g.authorize("bot", 999999, "amazon.com").decision == "DENY"
 
 
 # ── 不变量 8: Agent 不能获得绕过 SpendShield 的能力 ───────

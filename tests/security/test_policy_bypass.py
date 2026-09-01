@@ -41,24 +41,22 @@ def test_unknown_agent_denied():
     assert g._v2_estate.spent_total == 0
 
 
-def test_empty_agent_denied_by_default():
-    """空 agent(无身份): 默认拒绝(宪法: 无效身份不能付款)"""
+def test_empty_agent_uses_global_policy():
+    """空 agent(匿名)走全局策略(与 V1 一致), 受全局规则约束"""
     g = _make_guard()
-    r = g.authorize("", 10, "amazon.com")
-    assert r.decision == "DENY"
-    assert "empty agent" in r.reason.lower()
-    assert g._v2_estate.spent_total == 0
-
-
-def test_empty_agent_allowed_with_allow_unknown():
-    """allow_unknown=True: 空身份走全局策略, 仍受全局规则约束"""
-    cfg = dict(POLICY)
-    cfg["policy"] = dict(POLICY["policy"], allow_unknown=True)
-    g = _make_guard(cfg)
     r = g.authorize("", 10, "amazon.com")
     assert r.decision == "ALLOW"
     r2 = g.authorize("", 500, "amazon.com")
     assert r2.decision == "DENY"   # 全局 max=100 兜底
+
+
+def test_empty_agent_allowed_with_allow_unknown():
+    """allow_unknown=True: 未注册身份走全局策略"""
+    cfg = dict(POLICY)
+    cfg["policy"] = dict(POLICY["policy"], allow_unknown=True)
+    g = _make_guard(cfg)
+    assert g.authorize("nobody", 10, "amazon.com").decision == "ALLOW"
+    assert g.authorize("nobody", 500, "amazon.com").decision == "DENY"
 
 
 def test_negative_amount_denied():

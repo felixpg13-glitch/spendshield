@@ -172,6 +172,7 @@ class AgentPolicy:
     """合并后的单 agent 生效策略(agent 级 ⊳ 全局级, 写了就整段覆盖)"""
     agent: str
     version: str = ""
+    budget_owner: str = "global"     # budget 段来源: agent(写了自己的 budget) / global(继承)
     budget: BudgetRule = field(default_factory=BudgetRule)
     transaction: TransactionRule = field(default_factory=TransactionRule)
     merchants: MerchantRule = field(default_factory=MerchantRule)
@@ -200,11 +201,14 @@ class AgentPolicy:
 
         return cls(
             agent=agent, version=global_p.version,
+            budget_owner="agent" if agent_cfg.get("budget") else "global",
             budget=BudgetRule(**pick(b, global_p.budget, {"daily": "daily", "monthly": "monthly", "total": "total"})),
             transaction=TransactionRule(**pick(t, global_p.transaction, {"max": "max", "min": "min"})),
             merchants=MerchantRule(
                 allowed=[str(x).lower() for x in (m.get("allowed", global_p.merchants.allowed))],
-                blocked=[str(x).lower() for x in (m.get("blocked", global_p.merchants.blocked))],
+                # 黑名单 = 合并(agent + 全局), 只会更严(与 V1 语义一致: bl = 全局 + agent)
+                blocked=[str(x).lower() for x in (m.get("blocked", []) or [])]
+                        + [b for b in global_p.merchants.blocked if b not in (m.get("blocked", []) or [])],
                 allow_subdomains=m.get("allow_subdomains", global_p.merchants.allow_subdomains),
             ),
             approval=ApprovalRule(
@@ -232,3 +236,5 @@ class EngineState:
     rate_hits: list = field(default_factory=list)         # [(ts, agent, to_lower, amount)]
     known_recipients: set = field(default_factory=set)    # 成功交易过的收款方(小写)
     pending: dict = field(default_factory=dict)           # { approval_id: PaymentRequest }
+    spent_by_agent: dict = field(default_factory=dict)    # { agent: 该 agent 累计花费 }(agent 级预算隔离)
+    trusted_prefixes: set = field(default_factory=set)    # 信任前缀(旧 whitelist 子串语义迁移)

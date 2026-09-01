@@ -88,18 +88,12 @@ class X402PaywallGuard:
         """结算成功后调用: 累计已花 + 登记收款方(预算闸门持续生效)。"""
         amount = resource_price_to_amount(price)
         to = pay_to or resource
-        self.guard._spent += amount
-        if self.agent:
-            self.guard._agent_spent[self.agent] = self.guard._agent_spent.get(self.agent, 0.0) + amount
-        self.guard._known_recipients.add(str(to).lower())
+        self.guard.book(agent=self.agent, amount=amount, to=to)
 
 
 def confirm_x402_payment(guard: SpendShield, amount: float, to: str, agent: str = "") -> None:
     """客户端: 支付成功后确认(累计已花 + 登记收款方)。"""
-    guard._spent += amount
-    if agent:
-        guard._agent_spent[agent] = guard._agent_spent.get(agent, 0.0) + amount
-    guard._known_recipients.add(str(to).lower())
+    guard.book(agent=agent, amount=amount, to=to)
 
 
 def protect_x402_payment(guard: SpendShield, amount: float, to: str,
