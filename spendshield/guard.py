@@ -884,8 +884,13 @@ class SpendShield:
             self._known_recipients = set()
 
     def pending_approvals(self) -> list[dict]:
-        return [{"approval_id": k, "request": v.to_dict() if hasattr(v, "to_dict") else v} for k, v in
-                (self._v2_estate.pending.items() if self._v2_estate else {})]
+        """挂起审批列表(meta 脱敏, 防敏感信息泄漏)"""
+        out = []
+        for k, v in (self._v2_estate.pending.items() if self._v2_estate else []):
+            d = v.to_dict() if hasattr(v, "to_dict") else dict(v)
+            d["meta"] = self._redact_meta(d.get("meta", {}))
+            out.append({"approval_id": k, "request": d})
+        return out
 
     def book(self, agent: str = "", amount: float = 0.0, to: str = "") -> None:
         """公开记账(授权/执行成功后调用): 同步 V2 state + 旧层累计 + 收款方记忆。
