@@ -1,23 +1,7 @@
 {
-  "name": "spendshield",
-  "description": "AI payment guardrails for Python & MCP: spend-capped agent identity (KYA), four deterministic gates (dry-run, budget, per-transaction limit, human approval), prompt-injection defense, encrypted secret vault.",
-  "version": "0.6.1",
-  "repository": "https://github.com/felixpg13-glitch/spendshield",
-  "license": "MIT",
-  "author": "felixpg13-glitch",
-  "tags": ["ai-agents", "mcp", "payment-security", "guardrails", "python", "llm-security"],
-  "environmentVariablesJsonSchema": {
-    "properties": {
-      "SPENDGUARD_MASTER_KEY": {
-        "description": "Master key used by the key vault for encryption. Required if the policy uses a key vault.",
-        "type": "string"
-      },
-      "SPENDGUARD_POLICY": {
-        "description": "Path to the SpendShield policy YAML file.",
-        "type": "string"
-      }
-    },
-    "required": [],
-    "type": "object"
-  }
+  "$schema": "https://glama.ai/mcp/schemas/server.json",
+  "maintainers": ["felixpg13-glitch"],
+  "displayName": "SpendShield",
+  "description": "Policy & authorization layer for AI agent spending. Three-way decisions (ALLOW / APPROVAL / DENY) with explainable reason codes, policy lifecycle (validate → simulate → scan → review → apply → rollback), tamper-evident audit chain. Channel-agnostic — works with Stripe, x402, wallets. 240+ tests, 8 attack surfaces defended.",
+  "categories": ["Security", "Payments", "Financial", "Guardrails"]
 }
