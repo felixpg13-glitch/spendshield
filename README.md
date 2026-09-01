@@ -1,8 +1,14 @@
-# 💰 SpendShield — the policy control plane between AI agents and money
+# 💰 SpendShield — the authorization layer between AI agents and money
 
-> **Before your AI spends real money, it passes through SpendShield.**
+> **Payment networks move money. SpendShield decides whether it should move at all.**
 
-> *Not a wallet, not a payment rail — the authority layer: does this agent have the right to make this payment?*
+**What it is** — a channel-agnostic financial authorization runtime for AI agents.
+
+**What it does** — evaluates every spending action against policy *before* money moves: **ALLOW / APPROVAL (human) / DENY**, with a structured reason an LLM can consume.
+
+**What makes it different** — Policy · Approval · Security · Lifecycle · Explainability · Tamper-evident Audit. Not just *can* it pay — *is it authorized to?*
+
+**What it is NOT** — not a wallet, not a payment rail, not a payment processor. Stripe, x402, wallets stay downstream; SpendShield never holds your money.
 
 [![PyPI version](https://img.shields.io/pypi/v/spendshield)](https://pypi.org/project/spendshield/)
 [![Tests](https://img.shields.io/badge/tests-229%20passing-brightgreen)](https://github.com/felixpg13-glitch/spendshield/actions)
@@ -24,15 +30,20 @@ One YAML policy. One `authorize()` call. Every payment **decided, explained, aud
 
 [**▶ 30-second live demo**](https://felixpg13-glitch.github.io/spendshield/demo.html) — watch an AI agent get stopped.
 
-## 📊 Status — v0.8.x · 229 tests passing
+## 🏗️ The runtime — four layers
 
-| Policy Lifecycle | Security |
-|---|---|
-| ✓ Validate | ✓ Fuzz testing (random-seed soak) |
-| ✓ Simulate | ✓ Invariant testing (8-rule constitution) |
-| ✓ Scan | ✓ MCP adversarial testing |
-| ✓ Review | ✓ Tamper-evident audit chain |
-| ✓ Apply · ✓ Version · ✓ Rollback | ✓ Attack corpus (45 cases) |
+```
+┌────────────────────────────────┐
+│ GOVERNANCE   review · apply · version · rollback   │
+├────────────────────────────────┤
+│ AUTHORIZATION  policy · ALLOW / APPROVAL / DENY · reason codes │
+├────────────────────────────────┤
+│ SECURITY      scan · fuzz · 8 invariants           │
+├────────────────────────────────┤
+│ EVIDENCE      explainability · tamper-evident audit chain │
+└────────────────────────────────┘
+        ↓ Stripe / x402 / Wallet (channel-agnostic)
+```
 
 Not a demo — a working baseline. Every result in the demo is real engine output.
 
