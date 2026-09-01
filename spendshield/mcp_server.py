@@ -104,7 +104,7 @@ class SpendShieldMCP:
         if name == "spend_protect":
             return self._protect(args)
         if name == "spend_status":
-            return self.guard.summary()
+            return self.guard.status()   # V2 全量状态(引擎版本/策略版本/预算/审批/频率)
         if name == "spend_audit":
             limit = int(args.get("limit", 10))
             return {"records": [r.to_dict() for r in self.guard.records[-limit:]]}
