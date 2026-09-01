@@ -70,7 +70,7 @@ print(result.decision, "—", result.reason)
 ❌ DENY — transaction $75.00 exceeds the $50.00 limit
 ```
 
-▶ **Run it in Google Colab (zero install):** [open in Colab](https://colab.research.google.com/github/felixpg13-glitch/spendshield/blob/main/examples/quickstart.ipynb)
+⚡ **Try SpendShield in 60 Seconds — no API key required:** [▶ Open in Google Colab](https://colab.research.google.com/github/felixpg13-glitch/spendshield/blob/main/examples/quickstart.ipynb)
 
 ## ⚡ Quickstart — 5 minutes to running
 
