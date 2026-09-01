@@ -13,6 +13,8 @@ import uuid
 from dataclasses import dataclass, field, asdict
 from typing import Any, Callable, Optional
 
+from .audit import AuditLog
+
 try:  # V2 Policy Engine(可选依赖, 旧环境无 policy/ 包也能 import guard)
     from .policy import (
         AgentPolicy as V2AgentPolicy,
@@ -118,6 +120,7 @@ class SpendShield:
         self._rate_hits: list[tuple] = []      # (ts, agent, to)
         self._spent = 0.0
         self.records: list[AuditRecord] = []
+        self.audit = AuditLog()          # 可追责证据层(哈希链, 5 问可答)
         self._agents: dict[str, dict] = {}
         self._agent_spent: dict[str, float] = {}
         self.allow_unknown = allow_unknown
@@ -796,11 +799,14 @@ class SpendShield:
             raise RuntimeError("no V2 policy loaded: use load_policy() with new-format YAML first")
         from .policy import PaymentRequest as PR
         meta = dict(meta or {})
+        meta.setdefault("request_id", uuid.uuid4().hex[:12])   # 全链关联(5 问可答)
         req = PR(agent=agent or "", amount=float(amount), to=to, meta=meta)
         # 身份闸门(与 V1 语义一致): 空 agent = 匿名, 走全局策略; 非空未注册 = 无效身份, 默认拒绝
         # (allow_unknown=True 时未注册身份回落全局策略)
         if agent and agent not in self._v2_agents and not self._v2_policy.allow_unknown:
-            return self._v2_result("DENY", f"unknown agent '{agent}', denied by default", req)
+            res = self._v2_result("DENY", f"unknown agent '{agent}', denied by default", req)
+            self._record_v2(res, action=action or "authorize")
+            return res
         ap = V2AgentPolicy.merge(agent or "", self._v2_policy, self._v2_agents.get(agent))
         with self._v2_lock:
             # 防篡改: 运行时改 policy 对象 → 拒绝(宪法: Agent 不能绕过 SpendShield)
@@ -887,15 +893,21 @@ class SpendShield:
                 res.reason = "approval re-requested after grant (state changed), denied"
         if res.request:
             res.request["meta"] = self._redact_meta(res.request.get("meta", {}))
-        self._record_v2(res, action=f"approve[{by}]" if by else "approve")
+        self._record_v2(res, action="approve" if not by else f"approve[{by}]",
+                        request_id=req.meta.get("request_id", ""),
+                        approval_state="approved" if res.decision == "ALLOW" else "denied")
         return res
 
     def reject(self, approval_id: str, by: str = "") -> AuthorizationResult:
+        req = None
         with self._v2_lock:
-            self._v2_estate.pending.pop(approval_id, None)
+            item = self._v2_estate.pending.pop(approval_id, None)
+            req = item if item is not None else None
         res = AuthorizationResult(decision="DENY", reason=f"rejected by {by}" if by else "rejected",
                                   policy_version=self._v2_policy.version if self._v2_policy else "")
-        self._record_v2(res, action="reject")
+        self._record_v2(res, action="reject" if not by else f"reject[{by}]",
+                        request_id=(req.meta.get("request_id", "") if req else ""),
+                        approval_state="rejected")
         return res
 
     def reset(self) -> None:
@@ -958,12 +970,15 @@ class SpendShield:
         if agent:
             self._agent_spent[agent] = self._agent_spent.get(agent, 0.0) + amount
 
-    def _record_v2(self, res: AuthorizationResult, action: str = "") -> None:
+    def _record_v2(self, res: AuthorizationResult, action: str = "", *,
+                  request_id: str = "", approval_state: str = "") -> None:
         import hashlib
         req = res.request or {}
+        meta_fp = dict(req.get("meta", {}))
+        meta_fp.pop("request_id", None)   # 关联字段不参与内容指纹
         fp = hashlib.sha256(__import__("json").dumps(
             {"agent": req.get("agent", ""), "amount": req.get("amount", 0),
-             "to": req.get("to", ""), "meta": req.get("meta", {})},
+             "to": req.get("to", ""), "meta": meta_fp},
             sort_keys=True, default=str).encode()).hexdigest()[:16]
         rec = AuditRecord(action=action, agent=req.get("agent", ""),
                           amount=float(req.get("amount", 0) or 0),
@@ -975,3 +990,22 @@ class SpendShield:
                           input_hash=fp)
         self.records.append(rec)
         self.log(rec)
+        # ── 可追责证据层(哈希链) ──
+        codes = [h.get("code", "") for h in (res.to_dict().get("rules") or [])]
+        codes = [c for c in codes if c]
+        self.audit.append(
+            request_id=request_id or req.get("meta", {}).get("request_id", "") or res.audit_id,
+            actor=req.get("agent", ""), action=action or "authorize",
+            decision=res.decision,
+            reason_codes=codes,
+            primary_reason=res.reason,
+            amount=float(req.get("amount", 0) or 0),
+            currency=req.get("meta", {}).get("currency", ""),
+            merchant=req.get("to", ""),
+            approval_state=approval_state or ("requested" if res.decision == "APPROVAL" else "none"),
+            input_hash=fp,
+            meta=req.get("meta", {}),
+            policy_version=res.policy_version or (self._v2_policy.version if self._v2_policy else ""),
+            policy_hash=self._policy_fp(),
+            engine_version=__import__("spendshield", fromlist=["__version__"]).__version__,
+        )

@@ -249,6 +249,13 @@ class SpendShieldMCP:
                                decision="policy_applied",
                                reason=f"{old_version} -> {raw.get('version', '?')}",
                                spent_after=self.guard.spent)
+            self.guard.audit.append(
+                request_id="", actor="mcp:policy_apply", action="policy_apply",
+                decision="APPLIED", reason_codes=[], primary_reason=f"{old_version} -> {raw.get('version', '?')}",
+                amount=0.0, currency="", merchant="", approval_state="none",
+                input_hash="", meta={}, policy_version=str(raw.get("version", "?")),
+                policy_hash=self.guard._policy_fp(),
+                engine_version=__import__("spendshield", fromlist=["__version__"]).__version__)
             return {"ok": True, "version": raw.get("version", "?"),
                     "message": f"policy applied ({old_version} -> {raw.get('version', '?')})"}
         except Exception as e:

@@ -107,8 +107,8 @@ def test_policy_apply_new():
     # 注意: 新策略没有 agents 配置, bot 未注册 → DENY
     assert rr["decision"] == "DENY"
     assert "unknown agent" in rr["reason"].lower()
-    # 审计留痕
-    assert m.guard.records[-1].decision == "policy_applied"
+    # 审计留痕(unknown-agent 拒绝也会写审计, 故用存在性断言)
+    assert any(r.decision == "policy_applied" for r in m.guard.records)
 
 
 def test_policy_apply_rejects_bad():
