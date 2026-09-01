@@ -13,6 +13,21 @@ import uuid
 from dataclasses import dataclass, field, asdict
 from typing import Any, Callable, Optional
 
+try:  # V2 Policy Engine(可选依赖, 旧环境无 policy/ 包也能 import guard)
+    from .policy import (
+        AgentPolicy as V2AgentPolicy,
+        AuthorizationResult,
+        EngineState as V2EngineState,
+        PaymentRequest as V2PaymentRequest,
+        evaluate as v2_evaluate,
+        load_policy as v2_load_policy,
+        PolicyValidationError,
+    )
+except ImportError:  # pragma: no cover
+    V2AgentPolicy = AuthorizationResult = V2EngineState = V2PaymentRequest = None
+    v2_evaluate = v2_load_policy = None
+    PolicyValidationError = None
+
 
 class GuardedError(Exception):
     """SpendShield 拦截的基础异常"""
@@ -106,6 +121,11 @@ class SpendShield:
         self.approve_above = approve_above
         self.vault = key_vault
         self._known_recipients: set[str] = set()   # 成功交易过的收款方(意图一致性记忆)
+        # ── V2 Policy Engine 状态(仅在使用新格式 policy 时启用) ──
+        self._v2_policy = None            # V2 Policy 对象
+        self._v2_agents: dict = {}        # agents 配置表
+        self._v2_estate = V2EngineState() if V2EngineState else None
+        self._v2_lock = __import__("threading").RLock()   # 评估-记账原子性(防 TOCTOU)
         for aid, aconf in (agents or {}).items():
             self.register_agent(aid, **{k: v for k, v in aconf.items()
                                         if k in ("budget", "max_amount", "blacklist",
@@ -418,10 +438,18 @@ class SpendShield:
         return "(unknown)"
 
     def load_policy(self, path: str):
-        """从 YAML 策略文件加载配置(策略即代码)"""
+        """从 YAML 策略文件加载配置(策略即代码)。
+
+        新格式(V2 Policy Engine): 带 version + policy/agents 段 → 启用 V2 引擎
+        旧格式(扁平配置): 保留旧行为 + 自动迁移到 V2(双轨, 不破坏现有调用)
+        """
         import yaml
         with open(path, encoding="utf-8") as f:
             cfg = yaml.safe_load(f) or {}
+        # ── V2 新格式检测 ──
+        if "policy" in cfg or ("version" in cfg and ("agents" in cfg or "policy" in cfg)):
+            self._setup_v2(cfg)
+            return self
         for k in ("budget", "dry_run", "approval"):
             if k in cfg:
                 setattr(self, k, cfg[k])
@@ -455,6 +483,11 @@ class SpendShield:
             self.register_agent(aid, **{k: v for k, v in aconf.items()
                                         if k in ("budget", "max_amount", "blacklist",
                                                  "whitelist", "rate_limit", "approval")})
+        # ── 旧格式自动迁移到 V2(双轨) ──
+        try:
+            self._setup_v2(self._migrate_v1(cfg))
+        except Exception as e:  # pragma: no cover - 迁移失败不影响旧行为
+            print(f"[SpendShield] V2 policy migration skipped: {e}")
         return self
 
     def _authorize(self, action: str, amount: float, to: str, agent: str = "") -> bool:
@@ -501,3 +534,135 @@ class SpendShield:
         with open(path, "w", encoding="utf-8") as f:
             json.dump([r.to_dict() for r in self.records], f, ensure_ascii=False, indent=2)
         return path
+
+    # ═══════════════════════════════════════════════════════════════
+    # V2 Policy Engine — 新 API(不抛异常, 返回 AuthorizationResult)
+    # ═══════════════════════════════════════════════════════════════
+    @staticmethod
+    def _migrate_v1(cfg: dict) -> dict:
+        """旧格式(扁平 YAML) → 新格式。语义保守:
+        whitelist 旧语义=信任名单(跳过审批) → 迁移为预信任收款方, 不变成 V2 的「仅允许」。"""
+        rl = cfg.get("rate_limit") or {}
+        appr_channel = cfg.get("approval") if cfg.get("approval") in ("console", "tg", "webhook", "callable") else ""
+        return {
+            "version": "1.x-migrated",
+            "policy": {
+                "budget": {"total": float(cfg.get("budget", 0) or 0)},
+                "transaction": {"max": float(cfg.get("max_amount", 0) or 0)},
+                "merchants": {
+                    "allowed": [],
+                    "blocked": [str(x).lower() for x in (cfg.get("blacklist") or [])],
+                },
+                "approval": {
+                    "over": float(cfg.get("approve_above", 0) or 0),
+                    "new_merchant": bool(cfg.get("approve_new_recipient", True)),
+                    "channel": appr_channel,
+                },
+                "rate_limit": {
+                    "window_s": int(rl.get("window_s", 3600)),
+                    "max_calls": int(rl.get("max_calls", 0) or 0),
+                },
+                "allow_unknown": bool(cfg.get("allow_unknown", False)),
+            },
+            "agents": cfg.get("agents", {}) or {},
+            "_trusted_from_v1": [str(x).lower() for x in (cfg.get("whitelist") or [])],
+        }
+
+    def _setup_v2(self, raw: dict) -> None:
+        """加载 V2 policy(新格式或迁移后), 校验失败抛异常"""
+        if v2_load_policy is None:  # pragma: no cover
+            raise RuntimeError("V2 policy engine not available (policy/ package missing)")
+        self._v2_policy = v2_load_policy(raw)
+        self._v2_agents = raw.get("agents", {}) or {}
+        for trusted in raw.get("_trusted_from_v1", []):   # 旧 whitelist → 预信任
+            self._v2_estate.known_recipients.add(trusted)
+            self._known_recipients.add(trusted)
+
+    def authorize(self, agent: str = "", amount: float = 0.0, to: str = "", meta: Optional[dict] = None,
+                  action: str = "") -> AuthorizationResult:
+        """V2 授权入口: 返回 AuthorizationResult, 不抛异常。
+
+        决策 ALLOW 后自动记账(预算/频率/收款方记忆), 全部在锁内完成(防并发 TOCTOU)。
+        """
+        if self._v2_policy is None:
+            raise RuntimeError("no V2 policy loaded: use load_policy() with new-format YAML first")
+        from .policy import PaymentRequest as PR
+        req = PR(agent=agent or "", amount=float(amount), to=to, meta=dict(meta or {}))
+        # 未知 agent 安全默认
+        if agent and agent not in self._v2_agents and not self._v2_policy.allow_unknown:
+            return AuthorizationResult(decision="DENY",
+                                       reason=f"unknown agent '{agent}', denied by default",
+                                       request=req.to_dict(), policy_version=self._v2_policy.version)
+        ap = V2AgentPolicy.merge(agent or "", self._v2_policy, self._v2_agents.get(agent))
+        with self._v2_lock:
+            res = v2_evaluate(req, ap, self._v2_estate)
+            if res.decision == "ALLOW":
+                self._book_v2(agent, amount, to)
+            elif res.decision == "APPROVAL":
+                self._v2_estate.pending[res.approval_id] = (req, ap)
+        self._record_v2(res, action=action or "authorize")
+        return res
+
+    def approve(self, approval_id: str, by: str = "") -> AuthorizationResult:
+        """批准挂起审批 → 重新评估(防审批期间预算/名单变化)"""
+        if self._v2_policy is None:
+            raise RuntimeError("no V2 policy loaded")
+        with self._v2_lock:
+            item = self._v2_estate.pending.pop(approval_id, None)
+            if item is None:
+                res = AuthorizationResult(decision="DENY", reason=f"unknown approval id '{approval_id}'",
+                                          policy_version=self._v2_policy.version)
+                self._record_v2(res, action="approve")
+                return res
+            req, ap = item
+            # 人工确认 = 收款方视为可信
+            from .policy.engine import _norm_merchant
+            self._v2_estate.known_recipients.add(_norm_merchant(req.to, ap.merchants.allow_subdomains))
+            res = v2_evaluate(req, ap, self._v2_estate, approval_granted=True)
+            if res.decision == "ALLOW":
+                self._book_v2(req.agent, req.amount, req.to)
+            elif res.decision == "APPROVAL":   # 理论不可达(已豁免), 防御
+                res.decision = "DENY"
+                res.reason = "approval re-requested after grant (state changed), denied"
+        self._record_v2(res, action=f"approve[{by}]" if by else "approve")
+        return res
+
+    def reject(self, approval_id: str, by: str = "") -> AuthorizationResult:
+        with self._v2_lock:
+            self._v2_estate.pending.pop(approval_id, None)
+        res = AuthorizationResult(decision="DENY", reason=f"rejected by {by}" if by else "rejected",
+                                  policy_version=self._v2_policy.version if self._v2_policy else "")
+        self._record_v2(res, action="reject")
+        return res
+
+    def pending_approvals(self) -> list[dict]:
+        return [{"approval_id": k, "request": v[0].to_dict()} for k, v in
+                (self._v2_estate.pending.items() if self._v2_estate else {})]
+
+    def _book_v2(self, agent: str, amount: float, to: str) -> None:
+        """V2 记账(在锁内调用): 预算累计 + 频率窗口 + 收款方记忆 + 旧层审计同步"""
+        from datetime import date, datetime
+        import time as _t
+        day = date.today().isoformat()
+        month = datetime.now().strftime("%Y-%m")
+        st = self._v2_estate
+        st.spent_total += amount
+        st.spent_daily[day] = st.spent_daily.get(day, 0.0) + amount
+        st.spent_monthly[month] = st.spent_monthly.get(month, 0.0) + amount
+        from .policy.engine import _norm_merchant
+        nm = _norm_merchant(to, self._v2_policy.merchants.allow_subdomains)
+        st.rate_hits.append((_t.time(), agent, nm, amount))
+        st.known_recipients.add(nm)
+        self._known_recipients.add(nm)   # 与旧层记忆同步
+        self._spent += amount            # 旧层总账同步(便于 summary 一致)
+        if agent:
+            self._agent_spent[agent] = self._agent_spent.get(agent, 0.0) + amount
+
+    def _record_v2(self, res: AuthorizationResult, action: str = "") -> None:
+        rec = AuditRecord(action=action, agent=(res.request or {}).get("agent", ""),
+                          amount=float((res.request or {}).get("amount", 0) or 0),
+                          to=(res.request or {}).get("to", ""),
+                          decision=f"v2_{res.decision.lower()}", reason=res.reason,
+                          spent_after=self._spent)
+        self.records.append(rec)
+        self.log(rec)

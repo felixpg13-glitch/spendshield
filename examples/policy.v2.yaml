@@ -1,0 +1,47 @@
+# SpendShield V2 Policy 示例 — 购物 Agent
+# 用法: shield = SpendShield(); shield.load_policy("examples/policy.v2.yaml")
+# 评估: shield.authorize("shopping-agent", 75, "amazon.com")
+
+version: "2.0.0"
+
+policy:
+  budget:
+    daily: 100          # 每日上限
+    monthly: 1000       # 每月上限
+    total: 0            # 总上限(0 = 不限)
+
+  transaction:
+    max: 50             # 单笔上限
+    min: 0.01           # 单笔下限(防 0 元/负元)
+
+  merchants:
+    allowed:            # 白名单(只允许这些, 子域自动折叠)
+      - amazon.com
+      - walmart.com
+    blocked: []         # 黑名单
+    allow_subdomains: true   # sub.amazon.com 视为 amazon.com
+
+  approval:
+    over: 30            # 单笔 > $30 需人工确认
+    new_merchant: true  # 新收款方需人工确认
+    channel: tg         # console / tg / webhook / callable
+
+  rate_limit:
+    window_s: 3600      # 窗口 1 小时
+    max_calls: 5        # 窗口内最多 5 笔
+    max_total: 300      # 窗口内累计最多 $300
+
+agents:
+  shopping-agent:
+    transaction:
+      max: 50           # agent 级覆盖全局(写了就整段覆盖)
+    approval:
+      over: 30
+      new_merchant: true
+
+  big-spender:          # 宽限额 agent: 只覆盖 transaction + approval, 其余继承全局
+    transaction:
+      max: 200
+    approval:
+      over: 1000
+      new_merchant: false
