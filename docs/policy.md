@@ -1,39 +1,65 @@
-# SpendShield 策略文档
+# SpendShield 策略文档(V2 Policy Engine)
 
-策略即代码：所有规则收敛在 YAML 文件，`SpendShield(policy="spendshield.yaml")` 加载。
+策略即代码: 所有规则收敛在 YAML, `SpendShield().load_policy("policy.yaml")` 加载。
+V1 扁平格式(budget/max_amount/blacklist/...)仍兼容, 自动迁移到 V2 schema。
 
-## 字段说明
+## V2 格式(YAML)
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `dry_run` | bool | 干跑模式(默认 true)，只预览不真花 |
-| `budget` | number | 总预算，0=不限 |
-| `max_amount` | number | 单次上限，0=不限 |
-| `blacklist` | list | 收款方黑名单(子串匹配)，命中直接拒绝 |
-| `whitelist` | list | 收款方白名单(子串匹配)，跳过人工确认 |
-| `rate_limit.window_s` | number | 频率窗口(秒) |
-| `rate_limit.max_calls` | number | 窗口内最大次数 |
-| `approval` | null/console/tg/webhook | 人工确认模式 |
-| `tg.token` / `tg.chat` | str | TG 远程审批配置 |
-| `webhook_url` | str | Webhook 审批地址 |
-| `allow_unknown` | bool | 未注册 Agent 是否回落全局策略(默认 false = 拒绝) |
-| `agents` | dict | 按 Agent 分策略: {id: {budget/max_amount/blacklist/whitelist/rate_limit/approval}} |
-| `approve_new_recipient` | bool | 意图一致性: 新收款方强制审批(默认 true) |
-| `approve_above` | number | 意图一致性: 超此金额强制审批(0=不限) |
-| `vault.path` / `vault.master_key_env` | str | 密钥保险库: 文件路径 + 主密钥环境变量名 |
+```yaml
+version: "2.0.0"            # 必填; 每次评估记录版本, 事后可复现
 
-## 审批模式
+policy:                     # 全局策略
+  budget:
+    daily: 100              # 每日上限(0 = 不限)
+    monthly: 1000           # 每月上限
+    total: 0                # 总上限
+  transaction:
+    max: 50                 # 单笔上限
+    min: 0.01               # 单笔下限(防 0 元/负元/极小刷单)
+  merchants:
+    allowed: [amazon.com]   # 白名单: 精确域匹配(子域默认信任); 空 = 不限制
+    blocked: [scam.com]     # 黑名单: 子串匹配, 优先于白名单
+    allow_subdomains: true  # checkout.amazon.com 视为 amazon.com
+  approval:
+    over: 30                # 单笔 > $30 需人工确认
+    new_merchant: true      # 新收款方需人工确认
+    channel: tg             # console / tg / webhook / callable; 空 = 无通道 → 安全默认拒绝
+  rate_limit:
+    window_s: 3600          # 窗口(秒)
+    max_calls: 5            # 窗口内最多笔数
+    max_total: 300          # 窗口内累计金额上限
 
-- `null` — 不需要人工确认(低风险场景)
-- `console` — 终端输入 y/n
-- `tg` — 发 TG 消息等回复(需 tg.token/tg.chat)
-- `webhook` — POST 到审核服务，响应 `{"approved": bool}`
-- callable — 代码回调
+agents:                     # 按 Agent 分策略(agent 级 ⊳ 全局, 写了就整段覆盖)
+  shopping-agent:
+    transaction: { max: 50 }
+    approval: { over: 30, new_merchant: true, channel: tg }
+```
+
+## 合并规则(CSS 式)
+
+- agent 写了某段(如 budget)→ 整段覆盖全局
+- 没写的字段继承全局
+- 黑名单 = 合并(agent + 全局, 只会更严)
+- agent 的 approval.channel 为空 → 回退全局通道
+
+## 决策三态
+
+| 决策 | 含义 | 后续 |
+|---|---|---|
+| ALLOW | 通过, 预算已预留 | 可付款 |
+| APPROVAL | 需人工确认 | `shield.approve(id)` / `shield.reject(id)`; 批准后按当前策略重新评估 |
+| DENY | 拒绝(带 RuleHit 解释) | 查看 reason/rules |
+
+## 审计
+
+每次评估(含被拦)全部留痕, 带 policy_version。
+`guard.export_audit("audit.json")` 导出; `python -m spendshield.dashboard --file audit.json` 可视化。
 
 ## 安全默认
 
-- 未知审批模式 = 拒绝(安全默认)
-- 未注册 Agent = 拒绝(UnknownAgent)
-- 新收款方/大额无审批通道 = 拒绝(意图一致性)
-- 主密钥不落盘; 取密钥过闸门
-- 拦截全部留痕审计
+- 未注册 Agent(非空未注册)→ 拒绝; 空 agent(匿名)→ 全局策略
+- 新收款方/大额无审批通道 → 拒绝
+- 策略文件校验失败 → 拒绝加载(不进入半可用状态)
+- 运行时篡改策略对象 → 指纹校验拒绝
+- 策略变更 → 挂起审批全部作废(防宽松窗口挂单, 收紧后花钱)
+- 幂等键(idempotency_key)→ 同 key 重放拒绝
