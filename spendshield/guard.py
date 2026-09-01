@@ -61,6 +61,10 @@ class AuditRecord:
     decision: str = ""       # preview / blocked_budget / blocked_approval / executed / dry_run
     reason: str = ""
     spent_after: float = 0.0
+    # V2 可重现性(0.7.1+): 事后能回答「当时为什么放行/拒绝」
+    policy_version: str = ""  # 评估用的策略版本
+    engine_version: str = ""  # 引擎版本
+    input_hash: str = ""      # 请求指纹(agent|amount|to|meta 规范化哈希)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -927,10 +931,19 @@ class SpendShield:
             self._agent_spent[agent] = self._agent_spent.get(agent, 0.0) + amount
 
     def _record_v2(self, res: AuthorizationResult, action: str = "") -> None:
-        rec = AuditRecord(action=action, agent=(res.request or {}).get("agent", ""),
-                          amount=float((res.request or {}).get("amount", 0) or 0),
-                          to=(res.request or {}).get("to", ""),
+        import hashlib
+        req = res.request or {}
+        fp = hashlib.sha256(__import__("json").dumps(
+            {"agent": req.get("agent", ""), "amount": req.get("amount", 0),
+             "to": req.get("to", ""), "meta": req.get("meta", {})},
+            sort_keys=True, default=str).encode()).hexdigest()[:16]
+        rec = AuditRecord(action=action, agent=req.get("agent", ""),
+                          amount=float(req.get("amount", 0) or 0),
+                          to=req.get("to", ""),
                           decision=f"v2_{res.decision.lower()}", reason=res.reason,
-                          spent_after=self._spent)
+                          spent_after=self._spent,
+                          policy_version=res.policy_version or (self._v2_policy.version if self._v2_policy else ""),
+                          engine_version=__import__("spendshield", fromlist=["__version__"]).__version__,
+                          input_hash=fp)
         self.records.append(rec)
         self.log(rec)

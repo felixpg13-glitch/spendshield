@@ -80,6 +80,18 @@ Simulator 与真实 authorize 语义必须严格一致——改引擎时跑 `tes
 3. PyPI: `twine upload dist/spendshield-*`(token 走钥匙串 pypi-token, 用户名 `__token__`)
 4. ⚠️ 打包用 `[tool.setuptools.packages.find] include = ["spendshield*"]`——显式 packages 列表会漏子包(0.6.x 血泪)
 
+## 迭代规则(每版本必答 5 问)
+
+1. 新增了什么能力?
+2. 新增了什么攻击面?(每新增能力必须配攻击模型)
+3. 新增了哪些安全不变量?
+4. 新增了多少 Regression Cases?(进 `docs/attack-corpus.md` 编号登记)
+5. 旧测试有没有全部保持通过?
+
+**核心心法**: 迭代单位 = 风险覆盖能力, 不是功能数量。
+永远问:「SpendShield 还在哪些情况下可能错误地让一笔钱通过?」
+→ 变成攻击样本 → 不变量 → 自动测试 → 永久回归(见 `docs/attack-corpus.md`, 37 个编号案例)。
+
 ## Roadmap 现状
 
 V1 ✅ → V2 Policy Engine ✅ → V2.1 Simulator ✅ → V2.2 Security Harness ✅ → 引擎切换 ✅ → MCP ✅ → **v0.7.0 已发 PyPI** → 下一个: 第一个真实 Agent(麦当当) → V3 Intent Layer(防 prompt injection)→ V4 Risk → V5 IAM → V6 Payment Rails → V7 Dashboard → V8 Enterprise
