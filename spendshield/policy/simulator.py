@@ -48,10 +48,13 @@ class PolicySimulator:
             self.state.known_recipients.add(_norm_to(to, self.policy.merchants.allow_subdomains))
         return res
 
-    def sweep(self, agent: str, to: str, amounts: list[float]) -> dict:
-        """金额扫描: 每个金额独立评估(不累计), 找边界。"""
+    def sweep(self, agent: str, to: str, amounts: list[float], reset: bool = True) -> dict:
+        """金额扫描: 每个金额独立评估找边界(reset=True 默认, 每个金额从干净 state 开始);
+        传 reset=False 则按顺序连续执行(模拟真实连续消费)。"""
         out = {}
         for amt in amounts:
+            if reset:
+                self.state = EngineState()
             r = self.evaluate(agent, amt, to)
             out[amt] = r.decision
         return out
