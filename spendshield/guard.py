@@ -88,6 +88,7 @@ class SpendShield:
     def __init__(
         self,
         budget: float = 0.0,
+        max_amount: float = 0.0,
         dry_run: bool = True,
         approval: Optional[Any] = None,
         on_block: Optional[Callable[[AuditRecord], None]] = None,
@@ -117,7 +118,7 @@ class SpendShield:
         self.tg_chat = tg_chat
         self.webhook_url = webhook_url
         self._tg_offset = 0
-        self.default_max_amount = 0.0
+        self.default_max_amount = float(max_amount or 0.0)
         self._rate_hits: list[tuple] = []      # (ts, agent, to)
         self._spent = 0.0
         self.records: list[AuditRecord] = []

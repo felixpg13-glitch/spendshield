@@ -48,6 +48,30 @@ One YAML policy. One `authorize()` call. Every payment **decided, explained, aud
 Not a demo — a working baseline. Every result in the demo is real engine output.
 
 
+## ⚡ See it block a transaction in 60 seconds
+
+No config. No YAML. No account.
+
+```bash
+pip install spendshield
+```
+
+```python
+from spendshield import SpendShield
+
+shield = SpendShield(budget=100, max_amount=50, dry_run=False)
+
+# Agent tries to spend $75 — policy limit is $50
+result = shield.authorize("", 75, "amazon.com")
+print(result.decision, "—", result.reason)
+```
+
+```
+❌ DENY — transaction $75.00 exceeds the $50.00 limit
+```
+
+▶ **Run it in Google Colab (zero install):** [open in Colab](https://colab.research.google.com/github/felixpg13-glitch/spendshield/blob/main/examples/quickstart.ipynb)
+
 ## ⚡ Quickstart — 5 minutes to running
 
 ```bash

@@ -10,7 +10,7 @@ keywords = ["ai-agent", "mcp", "payment-security", "payment-guardrails", "llm-se
 readme = "README.md"
 requires-python = ">=3.9"
 license = {text = "MIT"}
-dependencies = ["cryptography>=41"]
+dependencies = ["cryptography>=41", "PyYAML>=6.0"]
 
 [tool.setuptools.packages.find]
 include = ["spendshield*"]
