@@ -170,6 +170,8 @@ SpendShield guards real money. Try to break it.
 
 **Current status:** 240 tests · 16 security suites · **11,351 adversarial authorization attempts · 0 unintended ALLOW · 0 crashes** ([audit](tests/security/adversarial_10k.py)) · 0 known escapes.
 
+> ⚠️ **Precision:** this is *evidence from the current test suite against the current implementation* — reproducible verification, **not a mathematical proof of security**. New attacks are always possible; every valid finding becomes a permanent regression test (see [SECURITY.md](SECURITY.md)).
+
 ## ⚠️ Transparent threat model
 
 - MCP has no auth — trust your host; `policy_apply` / `policy_review` are host-level operations
