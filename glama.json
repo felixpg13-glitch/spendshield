@@ -3,5 +3,10 @@
   "maintainers": ["felixpg13-glitch"],
   "displayName": "SpendShield",
   "description": "Policy & authorization layer for AI agent spending. Three-way decisions (ALLOW / APPROVAL / DENY) with explainable reason codes, policy lifecycle (validate → simulate → scan → review → apply → rollback), tamper-evident audit chain. Channel-agnostic — works with Stripe, x402, wallets. 240+ tests, 8 attack surfaces defended.",
-  "categories": ["Security", "Payments", "Financial", "Guardrails"]
+  "categories": ["Security", "Payments", "Financial", "Guardrails"],
+  "relatedServers": [
+    "x402-foundation/x402",
+    "modelcontextprotocol/servers",
+    "tempo-mcp/tempo-mcp"
+  ]
 }
