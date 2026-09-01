@@ -17,7 +17,7 @@ POLICY = {
         "merchants": {"allowed": ["amazon.com"]},
         "approval": {"over": 0, "new_merchant": False, "channel": ""},
     },
-    "agents": {"bot": {"approval": {"over": 0, "new_merchant": False}}},
+    "agents": {"bot": {"approval": {"over": 30, "new_merchant": False, "channel": "tg"}}},
 }
 
 SECRETS = {
@@ -59,7 +59,6 @@ def test_deny_result_redacts_too():
 
 def test_approval_result_redacts():
     g = _make_guard()
-    g._v2_agents["bot"]["approval"] = {"over": 30, "new_merchant": False, "channel": "tg"}
     r = g.authorize("bot", 40, "amazon.com", meta={"password": "p@ss"})
     assert r.decision == "APPROVAL"
     a = g.approve(r.approval_id, by="felix")

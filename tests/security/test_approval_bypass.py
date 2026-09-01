@@ -38,8 +38,8 @@ def test_approve_uses_original_request_not_tampered():
     r = g.authorize("agent-x", 40, "amazon.com")
     aid = r.approval_id
     # 攻击: 篡改 pending 里的金额
-    g._v2_estate.pending[aid][0].amount = 9999
-    g._v2_estate.pending[aid][0].to = "walmart.com"
+    g._v2_estate.pending[aid].amount = 9999
+    g._v2_estate.pending[aid].to = "walmart.com"
     res = g.approve(aid, by="felix")
     # 防御: 批准后重新评估(approval_granted), 但金额/收款方已变 → 理论应 DENY(max)
     # 注: 我们存的是 (req, ap) 元组, 直接改 dataclass 字段会生效——这里验证引擎兜底

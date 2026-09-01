@@ -93,8 +93,8 @@ def test_invariant_approval_binds_original_request():
     r = g.authorize("bot", 40, "amazon.com")
     aid = r.approval_id
     # 攻击: 批准前篡改挂起请求的金额和收款方
-    g._v2_estate.pending[aid][0].amount = 9999
-    g._v2_estate.pending[aid][0].to = "evil.com"
+    g._v2_estate.pending[aid].amount = 9999
+    g._v2_estate.pending[aid].to = "evil.com"
     res = g.approve(aid, by="felix")
     # 无论结果如何, 记账金额绝不允许等于篡改值 9999
     assert g._v2_estate.spent_total != 9999

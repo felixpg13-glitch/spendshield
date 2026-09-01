@@ -109,8 +109,11 @@ class SpendShieldMCP:
             limit = int(args.get("limit", 10))
             return {"records": [r.to_dict() for r in self.guard.records[-limit:]]}
         if name == "spend_reset":
-            self.guard._spent = 0.0
-            return {"ok": True, "message": "已花金额已重置"}
+            self.guard.reset()
+            self.guard._record(action="spend_reset", amount=0, to="",
+                               decision="spend_reset", reason="会话状态完整重置",
+                               spent_after=self.guard.spent)
+            return {"ok": True, "message": "会话状态已完整重置(预算/频率/审批/收款方记忆)"}
         if name == "secret_get":
             return self._secret_get(args)
         if name == "spend_authorize":

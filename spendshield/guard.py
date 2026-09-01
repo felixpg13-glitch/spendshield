@@ -450,6 +450,7 @@ class SpendShield:
             })
             for w in (whitelist or []):
                 self._v2_estate.trusted_prefixes.add(str(w).lower())
+            self._v2_policy_fp = self._policy_fp()
 
     def _agent_policy(self, agent_id: str) -> dict:
         """解析 Agent 身份: 未注册默认拒绝(安全默认), allow_unknown=True 回落全局策略"""
@@ -724,6 +725,9 @@ class SpendShield:
             raise RuntimeError("V2 policy engine not available (policy/ package missing)")
         self._v2_policy = v2_load_policy(raw)
         self._v2_agents = raw.get("agents", {}) or {}
+        # 策略变更: 挂起审批全部作废(防宽松窗口挂单 → 收紧后花钱)
+        if self._v2_estate is not None:
+            self._v2_estate.pending.clear()
         self._v2_policy_fp = self._policy_fp()
         for trusted in raw.get("_trusted_from_v1", []):   # 旧 whitelist → 预信任(子串语义)
             self._v2_estate.known_recipients.add(trusted)
@@ -755,7 +759,8 @@ class SpendShield:
                 return res
             # 防重放: 幂等键已消费过 → 拒绝(同 key 任何内容变体都算重放)
             ikey = meta.get("idempotency_key")
-            if ikey and ikey in self._v2_replay:
+            replay_key = f"{agent or ''}:{ikey}" if ikey else ""
+            if ikey and replay_key in self._v2_replay:
                 res = self._v2_result("DENY", f"replay detected: idempotency_key '{ikey}' already executed", req)
                 self._record_v2(res, action=action or "authorize")
                 return res
@@ -764,9 +769,9 @@ class SpendShield:
                 if book:
                     self._book_v2(agent, amount, to)
                 if ikey and book:
-                    self._v2_replay[ikey] = req.to_dict()
+                    self._v2_replay[replay_key] = req.to_dict()
             elif res.decision == "APPROVAL":
-                self._v2_estate.pending[res.approval_id] = (req, ap)
+                self._v2_estate.pending[res.approval_id] = req
         # 输出统一脱敏
         if res.request:
             res.request["meta"] = self._redact_meta(res.request.get("meta", {}))
@@ -774,11 +779,12 @@ class SpendShield:
         return res
 
     def _policy_fp(self) -> str:
-        """当前 Policy 对象指纹(序列化哈希), 用于检测运行时篡改"""
+        """当前 Policy + agents 配置指纹(序列化哈希), 用于检测运行时篡改"""
         import dataclasses, hashlib
         d = dataclasses.asdict(self._v2_policy) if self._v2_policy else {}
+        payload = {"policy": d, "agents": self._v2_agents or {}}
         return hashlib.sha256(
-            __import__("json").dumps(d, sort_keys=True, default=str).encode()
+            __import__("json").dumps(payload, sort_keys=True, default=str).encode()
         ).hexdigest()
 
     def _v2_result(self, decision: str, reason: str, req) -> AuthorizationResult:
@@ -811,16 +817,20 @@ class SpendShield:
                                           policy_version=self._v2_policy.version)
                 self._record_v2(res, action="approve")
                 return res
-            req, ap = item
-            # 人工确认 = 收款方视为可信
-            from .policy.engine import _norm_merchant
-            self._v2_estate.known_recipients.add(_norm_merchant(req.to, ap.merchants.allow_subdomains))
+            req = item
+            # 用当前策略重新合并(防策略变更后旧审批绕过新规则)
+            ap = V2AgentPolicy.merge(req.agent or "", self._v2_policy, self._v2_agents.get(req.agent))
+            # 防篡改: 审批时策略被改 → 拒绝
+            if self._v2_policy_fp and self._policy_fp() != self._v2_policy_fp:
+                res = self._v2_result("DENY", "policy tampered at runtime, denied", req)
+                self._record_v2(res, action="approve")
+                return res
             res = v2_evaluate(req, ap, self._v2_estate, approval_granted=True)
             if res.decision == "ALLOW":
                 self._book_v2(req.agent, req.amount, req.to)
                 ikey = req.meta.get("idempotency_key")
                 if ikey:
-                    self._v2_replay[ikey] = req.to_dict()
+                    self._v2_replay[f"{req.agent or ''}:{ikey}"] = req.to_dict()
             elif res.decision == "APPROVAL":   # 理论不可达(已豁免), 防御
                 res.decision = "DENY"
                 res.reason = "approval re-requested after grant (state changed), denied"
@@ -837,8 +847,25 @@ class SpendShield:
         self._record_v2(res, action="reject")
         return res
 
+    def reset(self) -> None:
+        """完整重置会话状态(预算累计/频率/挂起审批/收款方记忆), MCP spend_reset 走这里"""
+        with self._v2_lock:
+            self._spent = 0.0
+            self._agent_spent = {}
+            st = self._v2_estate
+            if st is not None:
+                st.spent_total = 0.0
+                st.spent_daily = {}
+                st.spent_monthly = {}
+                st.spent_by_agent = {}
+                st.rate_hits = []
+                st.pending = {}
+                st.known_recipients = set()
+                st.trusted_prefixes = set()
+            self._known_recipients = set()
+
     def pending_approvals(self) -> list[dict]:
-        return [{"approval_id": k, "request": v[0].to_dict()} for k, v in
+        return [{"approval_id": k, "request": v.to_dict() if hasattr(v, "to_dict") else v} for k, v in
                 (self._v2_estate.pending.items() if self._v2_estate else {})]
 
     def book(self, agent: str = "", amount: float = 0.0, to: str = "") -> None:
@@ -859,7 +886,14 @@ class SpendShield:
         st.spent_monthly[month] = st.spent_monthly.get(month, 0.0) + amount
         from .policy.engine import _norm_merchant
         nm = _norm_merchant(to, self._v2_policy.merchants.allow_subdomains)
-        st.rate_hits.append((_t.time(), agent, nm, amount))
+        # 频率窗口记录: agent 级或全局配了 rate_limit 才记(防无配置时无限增长)
+        acfg = (self._v2_agents or {}).get(agent, {}) if agent else {}
+        arl = acfg.get("rate_limit") or {}
+        has_rate = (self._v2_policy and (self._v2_policy.rate_limit.max_calls > 0
+                                         or self._v2_policy.rate_limit.max_total > 0)) \
+            or (arl.get("max_calls", 0) or 0) > 0 or (arl.get("max_total", 0) or 0) > 0
+        if has_rate:
+            st.rate_hits.append((_t.time(), agent, nm, amount))
         st.known_recipients.add(nm)
         if agent:
             st.spent_by_agent[agent] = st.spent_by_agent.get(agent, 0.0) + amount

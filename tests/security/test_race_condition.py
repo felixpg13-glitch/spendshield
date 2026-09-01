@@ -64,8 +64,8 @@ def test_concurrent_authorize_booking_matches():
     for t in threads:
         t.join()
     assert g._v2_estate.spent_total == 300, f"记账丢失: {g._v2_estate.spent_total}"
-    # rate_hits 与成功数一致
-    assert len(g._v2_estate.rate_hits) == 30
+    # 未配 rate_limit 不记 rate_hits(防无限增长)
+    assert g._v2_estate.rate_hits == []
 
 
 def test_rate_limit_window_race():
