@@ -11,7 +11,7 @@
 **What it is NOT** — not a wallet, not a payment rail, not a payment processor. Stripe, x402, wallets stay downstream; SpendShield never holds your money.
 
 [![PyPI version](https://img.shields.io/pypi/v/spendshield)](https://pypi.org/project/spendshield/)
-[![Tests](https://img.shields.io/badge/tests-229%20passing-brightgreen)](https://github.com/felixpg13-glitch/spendshield/actions)
+[![Tests](https://img.shields.io/badge/tests-240%20passing-brightgreen)](https://github.com/felixpg13-glitch/spendshield/actions)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
@@ -28,7 +28,29 @@ AGENT ──► SpendShield ──► Policy: max $50
 
 One YAML policy. One `authorize()` call. Every payment **decided, explained, audited** — with a reason an LLM can consume, and a tamper-evident audit chain.
 
-[**▶ 30-second live demo**](https://felixpg13-glitch.github.io/spendshield/demo.html) — watch an AI agent get stopped.
+[**▶ 30-second interactive demo**](https://felixpg13-glitch.github.io/spendshield/demo.html) — watch an AI agent get stopped.
+
+## 🎬 Watch it happen — 60-second real run
+
+A real Claude session asked to spend on McDonald's. It got its $25 order… then the gate said no to $75… then said no again when it tried to push $125 through a $100 daily budget. No retries, no splitting, no second path — the recording is unedited.
+
+[![60-second real demo — Claude vs the gate](docs/demo/spendshield_poster.jpg)](docs/demo/spendshield-demo-60s.mp4)
+
+## 🔒 One gate. No second path.
+
+```text
+        propose spend              decide               move money?
+   ┌─────────────┐  authorize_payment  ┌──────────────┐   ALLOW only   ┌──────────────┐
+   │  AI Agent   │ ──────────────────► │  SpendShield │ ─────────────► │ Payment rail │
+   │ (Claude,    │                     │ policy rules │                │ (Stripe,     │
+   │  scripts)   │ ◄────────────────── │ + human      │ ◄───────────── │  x402,       │
+   └─────────────┘  decision + reason  │ approval     │    never       │  wallet)     │
+                                       └──────────────┘                └──────────────┘
+                                               │
+                            DENY / APPROVAL — money does NOT move
+```
+
+The agent holds **no payment credentials** and has **no payment tool**. `authorize_payment` is the only path money can take — the decision is ALLOW / APPROVAL / DENY, the reason is structured for an LLM, and every attempt lands in the audit chain.
 
 ## 🏗️ The runtime — four layers
 
@@ -135,7 +157,7 @@ Claude Code / any MCP host gets: `spend_authorize`, `spend_approve`, `policy_sim
 
 ## 🧪 How it's tested (real money → real discipline)
 
-- **229 tests**, 14+ security suites: budget bypass, race conditions, replay, double-spend, parameter tampering, credential leaks…
+- **240 tests**, 14+ security suites: budget bypass, race conditions, replay, double-spend, parameter tampering, credential leaks…
 - **Security constitution — 8 invariants** that must never break: unauthorized → no payment · over budget → no payment · approval mismatch → no payment · invalid identity → no payment · replay → at most one authorization · concurrency → never breaks budget · engine failure → deny · agent can't bypass SpendShield
 - **Fuzz (random-seed soak)**: thousands of attack combinations per run, Money Invariant must hold
 - **Audit hash chain**: every decision is an event chained by hash — tamper with history and it's detected
