@@ -1,0 +1,19 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.felixpg13-glitch/spendshield",
+  "title": "SpendShield",
+  "description": "Policy & authorization layer between AI agents and money: ALLOW / human-approval / DENY, budgets, merchant rules, policy lifecycle, tamper-evident audit. MCP server + Python library.",
+  "repository": {
+    "url": "https://github.com/felixpg13-glitch/spendshield",
+    "source": "github"
+  },
+  "version": "0.8.3",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "spendshield",
+      "version": "0.8.3",
+      "transport": { "type": "stdio", "command": "uvx", "args": ["--from", "spendshield", "spendshield-mcp"] }
+    }
+  ]
+}

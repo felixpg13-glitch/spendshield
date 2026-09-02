@@ -1,4 +1,7 @@
 # 💰 SpendShield — the authorization layer between AI agents and money
+<!-- mcp-name: io.github.felixpg13-glitch/spendshield -->
+
+
 
 > **Payment networks move money. SpendShield decides whether it should move at all.**
 
