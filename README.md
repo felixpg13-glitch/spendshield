@@ -11,7 +11,7 @@
 **What it is NOT** — not a wallet, not a payment rail, not a payment processor. Stripe, x402, wallets stay downstream; SpendShield never holds your money.
 
 [![PyPI version](https://img.shields.io/pypi/v/spendshield)](https://pypi.org/project/spendshield/)
-[![Tests](https://img.shields.io/badge/tests-240%20passing-brightgreen)](https://github.com/felixpg13-glitch/spendshield/actions)
+[![Tests](https://img.shields.io/badge/tests-251%20passing-brightgreen)](https://github.com/felixpg13-glitch/spendshield/actions)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
@@ -159,7 +159,7 @@ Claude Code / any MCP host gets: `spend_authorize`, `spend_approve`, `policy_sim
 
 ## 🧪 How it's tested (real money → real discipline)
 
-- **240 tests**, 14+ security suites: budget bypass, race conditions, replay, double-spend, parameter tampering, credential leaks…
+- **251 tests**, 14+ security suites: budget bypass, race conditions, replay, double-spend, parameter tampering, credential leaks…
 - **Security constitution — 8 invariants** that must never break: unauthorized → no payment · over budget → no payment · approval mismatch → no payment · invalid identity → no payment · replay → at most one authorization · concurrency → never breaks budget · engine failure → deny · agent can't bypass SpendShield
 - **Fuzz (random-seed soak)**: thousands of attack combinations per run, Money Invariant must hold
 - **Audit hash chain**: every decision is an event chained by hash — tamper with history and it's detected
