@@ -34,7 +34,12 @@ One YAML policy. One `authorize()` call. Every payment **decided, explained, aud
 
 A real Claude session asked to spend on McDonald's. It got its $25 order… then the gate said no to $75… then said no again when it tried to push $125 through a $100 daily budget. No retries, no splitting, no second path — the recording is unedited.
 
-[![60-second real demo — Claude vs the gate](docs/demo/spendshield_poster.jpg)](docs/demo/spendshield-demo-60s.mp4)
+<video controls playsinline width="100%" poster="https://github.com/felixpg13-glitch/spendshield/raw/main/docs/demo/spendshield_poster.jpg">
+  <source src="https://github.com/felixpg13-glitch/spendshield/raw/main/docs/demo/spendshield-demo-60s.mp4" type="video/mp4">
+  ▶ <a href="https://felixpg13-glitch.github.io/spendshield/demo.html">Watch the 60-second demo (opens in your browser)</a>
+</video>
+
+<small>Video won't render on some viewers → <a href="https://felixpg13-glitch.github.io/spendshield/demo.html">play it inline on the demo page</a> · <a href="docs/demo/spendshield-demo-60s.mp4">or download the mp4</a></small>
 
 ## 🔒 One gate. No second path.
 
