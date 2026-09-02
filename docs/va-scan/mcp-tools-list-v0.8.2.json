@@ -1,0 +1,354 @@
+{
+ "_meta": {
+  "exporter": "spendshield.mcp_server.TOOLS",
+  "source_commit": "f9a0c5bf424a713edb2fbb92a44f4ec3479c3ff4 (v0.8.2)",
+  "exported_at": "2026-09-02"
+ },
+ "tools": [
+  {
+   "name": "spend_protect",
+   "description": "保护一次花钱操作。走干跑/预算/黑名单/白名单/频率/单次上限闸门。通过返回 ok=true; 被拦返回 ok=false + reason",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "action": {
+      "type": "string",
+      "description": "操作名, 如 下单/转账/充值"
+     },
+     "amount": {
+      "type": "number",
+      "description": "金额(元)"
+     },
+     "to": {
+      "type": "string",
+      "description": "收款方, 如 麦当劳/xxx@example.com"
+     },
+     "agent": {
+      "type": "string",
+      "description": "调用方 Agent 身份 ID(未注册默认拒绝, 建议必填)"
+     }
+    },
+    "required": [
+     "action",
+     "amount",
+     "to"
+    ]
+   }
+  },
+  {
+   "name": "spend_status",
+   "description": "查询当前护栏状态: 预算/已花/剩余/拦截统计",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "required": []
+   }
+  },
+  {
+   "name": "spend_audit",
+   "description": "最近审计记录(最多 N 条)",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "limit": {
+      "type": "integer",
+      "description": "条数, 默认 10"
+     }
+    },
+    "required": []
+   }
+  },
+  {
+   "name": "spend_reset",
+   "description": "重置本次会话已花金额(新会话/换预算时用)",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "required": []
+   }
+  },
+  {
+   "name": "secret_get",
+   "description": "从密钥保险库取密钥(过身份+审批闸门, 留审计)。密钥名视为收款方, 可加白名单免问",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "密钥名(如 mcd_sk)"
+     },
+     "agent": {
+      "type": "string",
+      "description": "调用方 Agent 身份 ID"
+     }
+    },
+    "required": [
+     "name",
+     "agent"
+    ]
+   }
+  },
+  {
+   "name": "authorize_payment",
+   "description": "SpendShield 授权入口(契约 v1): 在付款前判断一笔资金请求。输入 recipient/amount/purpose/agent_id; 返回 status(ALLOW/APPROVAL/DENY) + decision_id + policy_version + 结构化 reason(code/message/current_usage/requested)。ALLOW=可付款; APPROVAL=需人工审批(用 decision_id 调 spend_approve); DENY=拒绝",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "recipient": {
+      "type": "string",
+      "description": "收款方(商户/地址/账号)"
+     },
+     "amount": {
+      "type": "number",
+      "description": "金额"
+     },
+     "purpose": {
+      "type": "string",
+      "description": "用途说明(审计可读, 如 '订阅续费' '下单')"
+     },
+     "agent_id": {
+      "type": "string",
+      "description": "调用方 Agent 身份 ID(匿名可省)"
+     }
+    },
+    "required": [
+     "recipient",
+     "amount"
+    ]
+   }
+  },
+  {
+   "name": "spend_authorize",
+   "description": "V2 授权入口: 返回三态决策 ALLOW/DENY/APPROVAL + 命中规则(RuleHit 结构化)。ALLOW=可付款; APPROVAL=需人工审批(拿 approval_id 调 spend_approve); DENY=拒绝",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "agent": {
+      "type": "string",
+      "description": "Agent 身份 ID(匿名可省)"
+     },
+     "amount": {
+      "type": "number",
+      "description": "金额"
+     },
+     "to": {
+      "type": "string",
+      "description": "收款方"
+     },
+     "meta": {
+      "type": "object",
+      "description": "附加上下文(可带 idempotency_key 防重放)"
+     }
+    },
+    "required": [
+     "amount",
+     "to"
+    ]
+   }
+  },
+  {
+   "name": "spend_approve",
+   "description": "批准一笔挂起审批(APPROVAL 状态)。批准后重新评估, 返回最终决策",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "approval_id": {
+      "type": "string",
+      "description": "spend_authorize 返回的 approval_id"
+     },
+     "by": {
+      "type": "string",
+      "description": "批准人标识"
+     }
+    },
+    "required": [
+     "approval_id"
+    ]
+   }
+  },
+  {
+   "name": "spend_reject",
+   "description": "拒绝一笔挂起审批",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "approval_id": {
+      "type": "string",
+      "description": "spend_authorize 返回的 approval_id"
+     },
+     "by": {
+      "type": "string",
+      "description": "拒绝人标识"
+     }
+    },
+    "required": [
+     "approval_id"
+    ]
+   }
+  },
+  {
+   "name": "policy_sim",
+   "description": "花钱前模拟(不真花): 评估单笔或金额扫描, 返回决策+命中规则。Agent 在发起支付前先问'这单会不会被拦'",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "agent": {
+      "type": "string",
+      "description": "Agent 身份 ID"
+     },
+     "amount": {
+      "type": "number",
+      "description": "单笔金额(与 amounts 二选一)"
+     },
+     "amounts": {
+      "type": "array",
+      "items": {
+       "type": "number"
+      },
+      "description": "金额扫描列表(找边界)"
+     },
+     "to": {
+      "type": "string",
+      "description": "收款方"
+     }
+    },
+    "required": [
+     "to"
+    ]
+   }
+  },
+  {
+   "name": "policy_apply",
+   "description": "应用/更新策略(宿主管理工具, 仅限受信调用者)。传 policy JSON 生效新规则;无参数返回当前策略摘要。策略变更会审计留痕",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "policy": {
+      "type": "string",
+      "description": "V2 policy JSON(可选, 省略=查当前)"
+     }
+    },
+    "required": []
+   }
+  },
+  {
+   "name": "policy_create",
+   "description": "0.8 生命周期: 创建策略草稿(状态=CREATED)。草稿须走 validate/simulate/scan/review 才能 apply",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string",
+      "description": "草稿名"
+     },
+     "policy": {
+      "type": "string",
+      "description": "V2 policy JSON"
+     },
+     "by": {
+      "type": "string",
+      "description": "操作者"
+     }
+    },
+    "required": [
+     "name",
+     "policy"
+    ]
+   }
+  },
+  {
+   "name": "policy_stage",
+   "description": "0.8 生命周期: 一键验证草稿(validate+simulate+scan)。返回校验结果/模拟决策/安全扫描发现",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "draft_id": {
+      "type": "string",
+      "description": "policy_create 返回的 draft_id"
+     },
+     "by": {
+      "type": "string",
+      "description": "操作者"
+     }
+    },
+    "required": [
+     "draft_id"
+    ]
+   }
+  },
+  {
+   "name": "policy_review",
+   "description": "0.8 生命周期: 人工评审草稿(必须指定审批人)。scan 有 blocker 时无法通过",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "draft_id": {
+      "type": "string",
+      "description": "policy_create 返回的 draft_id"
+     },
+     "by": {
+      "type": "string",
+      "description": "审批人(必填)"
+     },
+     "approve": {
+      "type": "boolean",
+      "description": "是否批准, 默认 true"
+     }
+    },
+    "required": [
+     "draft_id",
+     "by"
+    ]
+   }
+  },
+  {
+   "name": "policy_lifecycle_apply",
+   "description": "0.8 生命周期: 上线草稿(必须 REVIEWED)。Apply 是危险边界, 不可跳过评审",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "draft_id": {
+      "type": "string",
+      "description": "policy_create 返回的 draft_id"
+     },
+     "by": {
+      "type": "string",
+      "description": "操作者"
+     }
+    },
+    "required": [
+     "draft_id"
+    ]
+   }
+  },
+  {
+   "name": "policy_rollback",
+   "description": "0.8 生命周期: 回滚到历史版本",
+   "inputSchema": {
+    "type": "object",
+    "properties": {
+     "version": {
+      "type": "string",
+      "description": "目标版本号"
+     },
+     "by": {
+      "type": "string",
+      "description": "操作者"
+     }
+    },
+    "required": [
+     "version"
+    ]
+   }
+  },
+  {
+   "name": "policy_versions",
+   "description": "0.8 生命周期: 列出所有版本(含操作者)",
+   "inputSchema": {
+    "type": "object",
+    "properties": {},
+    "required": []
+   }
+  }
+ ]
+}
