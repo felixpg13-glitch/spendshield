@@ -123,7 +123,8 @@ agents:
 ```python
 from spendshield import SpendShield
 
-shield = SpendShield()
+# dry_run=False: 真实执行。默认是安全干跑模式(只评估不执行) — 接入真实支付前用它调试
+shield = SpendShield(dry_run=False)
 shield.load_policy("policy.yaml")
 
 @shield.protect("order", agent="shopping-agent")
