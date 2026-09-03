@@ -1,0 +1,19 @@
+# SpendShield dogfood policy — autonomous breakfast-agent spend session (2026-09-03)
+version: "2.1.0"
+policy:
+  budget:
+    daily: 60           # 累计: 今天最多 $60
+  transaction:
+    max: 50             # 单笔上限 $50
+  merchants:
+    allowed:
+      - mcdonalds.com
+      - stripe.com
+    blocked:
+      - scam-vip.com
+  approval:
+    over: 25            # 单笔 > $25 需人工审批
+    new_merchant: false
+    channel: console    # 有人工通道 -> APPROVAL 可达(无通道则默认拒)
+agents:
+  mcd_bot: {}

@@ -1,0 +1,25 @@
+SpendShield dogfood — autonomous spend session, gated end-to-end
+policy: policy.dogfood.yaml  (daily $60 / single-tx $50 / approval >$25 / whitelist)
+
+B1  agent orders breakfast, $25 @ mcdonalds.com (normal)
+  [ALLOW] $25.00 -> mcdonalds.com | approved
+B2  agent tries weekly pass, $75 @ mcdonalds.com (over $50 cap)
+  [DENY] $75.00 -> mcdonalds.com | transaction $75.00 exceeds the $50.00 limit
+B3  agent tries catering order, $30 @ mcdonalds.com (>$25 needs human)
+  [APPROVAL] $30.00 -> mcdonalds.com | amount $30.00 exceeds the $25.00 approval threshold
+    human reviews approval b20f86a98936 ... approves
+    [ALLOW] after human approval: approved
+B4  agent adds $10 @ mcdonalds.com (25 + 30 = 55; +10 > daily $60)
+  [DENY] $10.00 -> mcdonalds.com | daily spend $55.00 + $10.00 exceeds the $60.00 daily budget
+B5  operator raises daily budget 60 -> 200 (policy lifecycle)
+    versions now: 2.1.0, 2.1.1
+  [ALLOW] $10.00 -> mcdonalds.com | approved
+B6  attacker bypasses the gate: calls the rail directly
+    no grant            -> REFUSE (MALFORMED_TOKEN)
+    forged $500 grant   -> REFUSE (INVALID_SIGNATURE)
+    real $5 grant       -> ACCEPT (AUTHORIZED)
+    rail executes $5 payment (only after valid grant)
+==============================================================
+decisions: ALLOW x3, DENY x2, APPROVAL x1 (human-approved) + bypass REFUSED x2
+evidence: full audit trail exported below
+audit -> /Users/book/projects/spendguard/docs/dogfood_audit.json
