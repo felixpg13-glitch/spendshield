@@ -1,0 +1,26 @@
+# SpendShield E2E demo policy — 麦当当早餐 Agent 场景(2026-09-03)
+# 故事: mcd_bot 是负责买麦当劳早餐的 Agent。麦金卡权益 = 每日 1 份早餐。
+# 三个镜头: 正常买 / 被提示注入转钱 / 权益防重(想再买一份)
+version: "2.1.0"
+policy:
+  budget:
+    daily: 30          # 每日只批 $30(约一份早餐)
+  transaction:
+    max: 20            # 单笔 ≤ $20(早餐套餐价)
+  merchants:
+    allowed:
+      - mcdonalds.com  # 只许给麦当劳花钱
+    blocked:
+      - scam-vip.com   # 攻击者收款域名(演示用)
+  rate_limit:
+    window_s: 86400    # 按天窗口
+    max_calls: 1       # 早餐权益每日 1 份 → 第二份必 DENY
+  approval:
+    over: 30
+    new_merchant: false
+    channel: ""
+
+# KYA 身份层: 注册 mcd_bot(空配置 = 继承全局策略); 未注册 agent 一律默认拒绝
+allow_unknown: false
+agents:
+  mcd_bot: {}
