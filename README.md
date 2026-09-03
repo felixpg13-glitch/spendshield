@@ -91,6 +91,19 @@ Run the whole thing in 10 seconds:
 python examples/execution_gateway_demo.py
 ```
 
+What you'll see:
+
+```
+authorize -> [ALLOW] grant issued (policy v2.1.0)
+[gateway] call 1 (valid grant)    -> EXECUTES (grant verified AUTHORIZED)
+[gateway] call 2 (same token)     -> REFUSED (REUSED)
+[gateway] direct call, no token   -> REFUSED (MALFORMED_TOKEN)
+[gateway] forged $500 grant       -> REFUSED (INVALID_SIGNATURE)
+[gateway] tampered grant          -> REFUSED (INVALID_SIGNATURE)
+```
+
+One execution, four refusals. Full output: [`docs/execution_demo_output.txt`](https://felixpg13-glitch.github.io/spendshield/execution_demo_output.txt)
+
 See the reasoning behind it: [Why this exists](https://felixpg13-glitch.github.io/spendshield/why.html)
 
 ## 🏗️ The runtime — four layers
