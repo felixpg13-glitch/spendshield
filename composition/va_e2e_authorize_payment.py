@@ -12,6 +12,7 @@ Independent handler-entry counter + full-chain assertions. Exit != 0 on any FAIL
 
 Run:  PYTHONPATH=<verb-authority src> python3 composition/va_e2e_authorize_payment.py
 """
+import json
 import os
 import sys
 
@@ -100,6 +101,17 @@ def run_case(label, agent_args, trusted_args, expect_invoked):
                 if not ver:
                     ok = False
                     notes.append(f"grant verify failed: {why}")
+                # explicit decode: signed source fields == canonical trusted_args
+                import base64 as _b64
+                _body = grant.split(".")[0]
+                _pad = _b64.urlsafe_b64decode(_body.encode() + b"=" * (-len(_body) % 4))
+                _pl = json.loads(_pad)
+                for _f, _exp in (("merchant_source", "trusted_args"),
+                                 ("amount_source", "trusted_args"),
+                                 ("agent_source", "trusted_args")):
+                    if _pl.get(_f) != _exp:
+                        ok = False
+                        notes.append(f"signed {_f}={_pl.get(_f)!r} != {_exp!r}")
         else:
             if res.decision.allow is not False:
                 ok = False
