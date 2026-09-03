@@ -222,3 +222,18 @@
 
 > 规则: 新攻击 → 在此登记编号 → 最小复现 → 期望不变量 → 回归测试 → 永久保留。
 > 每版本 5 问: ①新增能力 ②新增攻击面 ③新增不变量 ④新增 Regression Cases ⑤旧测试保持全绿?
+
+---
+
+# FIX — 产品缺陷修复台账(非攻击类 bug)
+
+> 每个 bug: 编号 / 现象 / 根因 / 修复 / 回归测试 / commit。
+> **规则(2026-09-03 定)**: 每修一个真 bug → ①必修成 regression test(259 passing 里的每一道都可能拦住明天的同类事故) ②本台账记一条 ③bug 语料 = 壁垒, 和 attack corpus 一样抄不走。
+
+### FIX-001 export_audit 漏导 policy lifecycle 事件(2026-09-03 🔴)
+- **现象**: 系统内部证据完整(哈希链 12 events INTACT), 但 `export_audit()` 只导 `self.records` → 用户拿到的审计导出缺全部 policy 变更事件。钱相关项目的证据链在"导出"这个用户可见环节断裂。
+- **根因**: v2 authorize/approve 双写 records + AuditLog 哈希链; policy lifecycle 事件只进 AuditLog。export_audit 是 v1 时代实现, 只读 records。
+- **修复**: 导出 = 哈希链事件全量(权威) + records 中链外记录(v1 遗留, 无 input_hash), 按 ts 排序去重。重叠键 = `input_hash`(双写同源)。
+- **回归测试**: `tests/test_guard.py::test_export_audit_includes_lifecycle_and_dedupes`(断言 lifecycle 事件进导出 + 零重复 + 时间有序)
+- **commit**: 866887d
+- **附带发现**: v2 双写设计本身 OK(records=兼容层, 哈希链=证据层), 但"导出口只有一个"是设计盲区 → 已立规: 审计导出永远双源合并。
