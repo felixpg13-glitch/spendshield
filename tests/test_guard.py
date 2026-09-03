@@ -527,3 +527,43 @@ def test_export_audit_nested_dir():
         data = json.load(open(path, encoding="utf-8"))
         assert data[-1]["decision"] == "executed"
     print("✅ 回归: 审计导出自动建目录")
+
+
+def test_export_audit_includes_lifecycle_and_dedupes():
+    """2026-09-03 regression: export_audit 此前漏 policy lifecycle 事件且 v2 双写会重复。
+    修复后: 导出 = 哈希链全量 + records 中链外记录(v1), 不重复。"""
+    import json
+    from spendshield import SpendShield
+
+    shield = SpendShield(budget=100, max_amount=50, dry_run=False, log=lambda rec: None)
+    shield.authorize(agent="", amount=25, to="amazon.com")
+    shield.authorize(agent="", amount=75, to="amazon.com")   # DENY
+
+    raw = {
+        "version": "9.9.9",
+        "policy": {
+            "budget": {"daily": 200},
+            "transaction": {"max": 50},
+            "merchants": {"allowed": ["amazon.com"], "blocked": []},
+            "approval": {"over": 0, "new_merchant": False, "channel": ""},
+        },
+        "agents": {},
+    }
+    pm = shield.policy_manager
+    d = pm.create("raise daily", dict(raw), by="t")
+    pm.validate(d.id, by="t")
+    pm.simulate(d.id, by="t")
+    pm.scan(d.id, by="t")
+    pm.review(d.id, by="t", approve=True)
+    pm.apply(d.id, by="t")
+
+    path = shield.export_audit("/tmp/ss_export_test.json")
+    exported = json.load(open(path, encoding="utf-8"))
+    actions = {e.get("action") for e in exported}
+    # 1) 生命周期事件进了导出(本次修复点)
+    assert "policy_create" in actions and "policy_apply" in actions, actions
+    # 2) 无重复: 全量记录都在哈希链里 → 导出数 == 链事件数
+    assert len(exported) == len(shield.audit.events), (len(exported), len(shield.audit.events))
+    # 3) 按 ts 升序
+    ts = [e.get("ts", 0) for e in exported]
+    assert ts == sorted(ts)

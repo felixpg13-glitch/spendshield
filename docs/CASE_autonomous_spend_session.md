@@ -28,7 +28,7 @@ No account, no API key, no money moves (policy evaluation + mock rail).
 
 - Run output: [`docs/dogfood_flow_output.txt`](dogfood_flow_output.txt)
 - Hash chain (12 events, INTACT): [`docs/dogfood_audit_chain.json`](dogfood_audit_chain.json)
-- Audit records: [`docs/dogfood_audit.json`](dogfood_audit.json)
+- Merged audit export (records + hashed chain, no dupes): [`docs/dogfood_audit.json`](dogfood_audit.json)
 
 ## What this is (and isn't)
 

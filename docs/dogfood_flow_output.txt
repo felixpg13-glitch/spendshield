@@ -7,7 +7,7 @@ B2  agent tries weekly pass, $75 @ mcdonalds.com (over $50 cap)
   [DENY] $75.00 -> mcdonalds.com | transaction $75.00 exceeds the $50.00 limit
 B3  agent tries catering order, $30 @ mcdonalds.com (>$25 needs human)
   [APPROVAL] $30.00 -> mcdonalds.com | amount $30.00 exceeds the $25.00 approval threshold
-    human reviews approval 606878369851 ... approves
+    human reviews approval 5f17f8977b1e ... approves
     [ALLOW] after human approval: approved
 B4  agent adds $10 @ mcdonalds.com (25 + 30 = 55; +10 > daily $60)
   [DENY] $10.00 -> mcdonalds.com | daily spend $55.00 + $10.00 exceeds the $60.00 daily budget

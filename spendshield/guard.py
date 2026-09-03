@@ -683,12 +683,23 @@ class SpendShield:
         return status
 
     def export_audit(self, path: str = "spendshield_audit.json") -> str:
-        """导出审计日志(自动创建父目录)"""
+        """导出审计日志(自动创建父目录)。
+
+        2026-09-03 修复: v2 authorize/approve 双写 records + 哈希链(AuditLog),
+        policy 生命周期事件只进哈希链。此前只导 records → 治理事件在导出产物里缺失。
+        现在: 哈希链事件全量导出(权威, 含 policy lifecycle) + records 中链里没有的
+        (v1 遗留记录, 无 input_hash), 按 ts 排序, 不重复。
+        """
         d = os.path.dirname(os.path.abspath(path))
         if d:
             os.makedirs(d, exist_ok=True)
+        chain_hashes = {ev.input_hash for ev in self.audit.events if getattr(ev, "input_hash", "")}
+        merged = [ev.to_dict() for ev in self.audit.events]
+        merged += [r.to_dict() for r in self.records
+                   if not getattr(r, "input_hash", "") or r.input_hash not in chain_hashes]
+        merged.sort(key=lambda x: x.get("ts", 0.0))
         with open(path, "w", encoding="utf-8") as f:
-            json.dump([r.to_dict() for r in self.records], f, ensure_ascii=False, indent=2)
+            json.dump(merged, f, ensure_ascii=False, indent=2, default=str)
         return path
 
     # ═══════════════════════════════════════════════════════════════
