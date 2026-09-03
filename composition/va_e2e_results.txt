@@ -1,6 +1,11 @@
 VA × SpendShield E2E — authorize_payment composition (source-bound, full-chain)
 params: recipient/amount/agent_id sink=TRUSTED_FIXED · purpose writable
 
+source-bound negative probes (grant issuance/verification/consumption):
+[PASS] probe A: agent source omitted at issuance -> SOURCE_MISSING:agent
+[PASS] probe B: amount source replaced -> SOURCE_MISMATCH:amount
+[PASS] probe C: complete correct source map -> AUTHORIZED
+
 [PASS] 1. trusted recipient+amount fixed, model writes purpose       -> 1
         invoked=1 (expect 1) | allow=True | 
 [PASS] 2. model changes amount (trusted fixed)                       -> 0
@@ -16,4 +21,4 @@ params: recipient/amount/agent_id sink=TRUSTED_FIXED · purpose writable
 [PASS] 5. only purpose changes while protected values remain bound   -> 1
         invoked=1 (expect 1) | allow=True | 
 
-ALL PASS — full chain asserted (VA allow · handler invoked · independent counter · SpendShield ALLOW · source-bound grant verified via Executor)
+ALL PASS — full chain + source-bound negative probes (VA allow · handler invoked · independent counter · SpendShield ALLOW · grant verified & consumed via Executor)

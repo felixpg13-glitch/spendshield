@@ -99,6 +99,12 @@ class Executor:
                     return False, f"SOURCE_MISSING:{f}"      # 执行时没声明来源
                 if str(sources[f]) != str(payload[skey]):
                     return False, f"SOURCE_MISMATCH:{f}"     # 来源被替换(trusted→agent 等)
+        # 2c. 反向 fail-closed(2026-09-03 VA review): 调用方声明了 sources 时,
+        #      token 必须也声明了对应标签 — 防“签发时漏掉全部 source 标签仍 AUTHORIZED”
+        if sources:
+            for f in sources:
+                if f in _FIELDS and f"{f}_source" not in payload:
+                    return False, f"SOURCE_MISSING:{f}"
 
         # 3. 过期
         if payload.get("exp", 0) < time.time():

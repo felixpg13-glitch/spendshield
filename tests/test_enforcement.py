@@ -177,3 +177,29 @@ def test_legacy_grant_without_sources_still_works(pair):
     ok, reason = executor.verify(tok, agent="claude", amount=25.0, currency="USD",
                                  merchant="mcdonalds.com", policy_version="2.1.0")
     assert ok and reason == "AUTHORIZED"
+
+
+def test_unbound_token_fails_source_bound_verification(pair):
+    """2026-09-03 VA review 缺口: 签发时漏掉全部 source 标签的 token,
+    遇到带 sources 的验证必须 fail closed(此前 AUTHORIZED)"""
+    issuer, executor = pair
+    tok = issuer.issue(agent="claude", amount=25.0, currency="USD",
+                       merchant="mcdonalds.com", policy_version="2.1.0")  # 无 sources
+    ok, reason = executor.verify(tok, agent="claude", amount=25.0, currency="USD",
+                                 merchant="mcdonalds.com", policy_version="2.1.0",
+                                 sources={"agent": "trusted_app", "amount": "trusted_args",
+                                          "merchant": "trusted_app"})
+    assert not ok and reason == "SOURCE_MISSING:agent"
+
+
+def test_partially_bound_token_fails_missing_label(pair):
+    """只绑了 amount/merchant、漏 agent → SOURCE_MISSING:agent"""
+    issuer, executor = pair
+    tok = issuer.issue(agent="claude", amount=25.0, currency="USD",
+                       merchant="mcdonalds.com", policy_version="2.1.0",
+                       sources={"amount": "trusted_args", "merchant": "trusted_app"})
+    ok, reason = executor.verify(tok, agent="claude", amount=25.0, currency="USD",
+                                 merchant="mcdonalds.com", policy_version="2.1.0",
+                                 sources={"agent": "trusted_app", "amount": "trusted_args",
+                                          "merchant": "trusted_app"})
+    assert not ok and reason == "SOURCE_MISSING:agent"

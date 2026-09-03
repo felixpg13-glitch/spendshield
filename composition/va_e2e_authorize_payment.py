@@ -57,7 +57,7 @@ reg.add(Tool(
      Param("amount", "number", sink=True),
      Param("agent_id", "string", sink=True),
      Param("purpose", "string", sink=False)],
-    risk=Risk.WRITE,
+    risk=Risk.FINANCIAL,
     fn=authorize_payment_handler,
 ))
 ps = build_policy(reg)
@@ -128,9 +128,54 @@ def run_case(label, agent_args, trusted_args, expect_invoked):
           f"{' | '.join(notes) if notes else ''}")
 
 
+def probe_source_binding():
+    """Negative verification probes (VA review): source-bound chain must fail closed
+    if any canonical source label is missing or replaced at issuance."""
+    ok_all = True
+    # (a) issuance omits agent source -> SOURCE_MISSING:agent on full-map verify
+    g = issuer.issue(agent="mcd_bot", amount=25, currency="USD", merchant="mcdonalds.com",
+                     policy_version="2.1.0",
+                     sources={"merchant": "trusted_args", "amount": "trusted_args"})
+    v, why = executor.verify(g, agent="mcd_bot", amount=25, currency="USD",
+                             merchant="mcdonalds.com", policy_version="2.1.0",
+                             sources={"merchant": "trusted_args", "amount": "trusted_args",
+                                      "agent": "trusted_args"})
+    good = (not v) and why == "SOURCE_MISSING:agent"
+    ok_all &= good
+    print(f"[{'PASS' if good else 'FAIL'}] probe A: agent source omitted at issuance -> {why}")
+    # (b) issuance replaces amount source -> SOURCE_MISMATCH:amount
+    g = issuer.issue(agent="mcd_bot", amount=25, currency="USD", merchant="mcdonalds.com",
+                     policy_version="2.1.0",
+                     sources={"merchant": "trusted_args", "amount": "agent_controlled",
+                              "agent": "trusted_args"})
+    v, why = executor.verify(g, agent="mcd_bot", amount=25, currency="USD",
+                             merchant="mcdonalds.com", policy_version="2.1.0",
+                             sources={"merchant": "trusted_args", "amount": "trusted_args",
+                                      "agent": "trusted_args"})
+    good = (not v) and why == "SOURCE_MISMATCH:amount"
+    ok_all &= good
+    print(f"[{'PASS' if good else 'FAIL'}] probe B: amount source replaced -> {why}")
+    # (c) complete correct source map -> AUTHORIZED
+    g = issuer.issue(agent="mcd_bot", amount=25, currency="USD", merchant="mcdonalds.com",
+                     policy_version="2.1.0",
+                     sources={"merchant": "trusted_args", "amount": "trusted_args",
+                              "agent": "trusted_args"})
+    v, why = executor.verify(g, agent="mcd_bot", amount=25, currency="USD",
+                             merchant="mcdonalds.com", policy_version="2.1.0",
+                             sources={"merchant": "trusted_args", "amount": "trusted_args",
+                                      "agent": "trusted_args"})
+    good = v and why == "AUTHORIZED"
+    ok_all &= good
+    print(f"[{'PASS' if good else 'FAIL'}] probe C: complete correct source map -> {why}")
+    return ok_all
+
+
 if __name__ == "__main__":
     print("VA × SpendShield E2E — authorize_payment composition (source-bound, full-chain)")
     print("params: recipient/amount/agent_id sink=TRUSTED_FIXED · purpose writable\n")
+    print("source-bound negative probes (grant issuance/verification/consumption):")
+    probes_ok = probe_source_binding()
+    print()
 
     run_case("1. trusted recipient+amount fixed, model writes purpose       -> 1",
              {**TRUSTED, "purpose": "order breakfast, $25"}, TRUSTED, 1)
@@ -150,9 +195,9 @@ if __name__ == "__main__":
              {**TRUSTED, "purpose": "order a different breakfast item"}, TRUSTED, 1)
 
     print()
-    if FAILURES:
-        print(f"FAILED: {len(FAILURES)} — {FAILURES}")
+    if FAILURES or not probes_ok:
+        print(f"FAILED: cases={FAILURES} probes={'FAIL' if not probes_ok else 'ok'}")
         sys.exit(1)
-    print("ALL PASS — full chain asserted (VA allow · handler invoked · independent "
-          "counter · SpendShield ALLOW · source-bound grant verified via Executor)")
+    print("ALL PASS — full chain + source-bound negative probes (VA allow · handler invoked · "
+          "independent counter · SpendShield ALLOW · grant verified & consumed via Executor)")
     sys.exit(0)
