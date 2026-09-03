@@ -70,6 +70,29 @@ A real Claude session asked to spend on McDonald's. It got its $25 order… then
 
 The agent holds **no payment credentials** and has **no payment tool**. `authorize_payment` is the only path money can take — the decision is ALLOW / APPROVAL / DENY, the reason is structured for an LLM, and every attempt lands in the audit chain.
 
+## 🔐 Why authorization checks aren't enough — execution enforcement
+
+A policy check is an opinion: an agent can simply ignore it. So SpendShield issues a **signed, single-use grant**, and the execution layer is built to consume it:
+
+```
+SpendShield:  policy → ALLOW → signed grant (agent · amount · merchant · policy version)
+
+Execution:    verify(grant) → valid + unused → execute
+              otherwise     → fail closed
+```
+
+- Replay the same grant → **refused** (one-time)
+- No grant / malformed grant → **refused**
+- Forged or tampered grant → **refused** (signature mismatch)
+
+Run the whole thing in 10 seconds:
+
+```bash
+python examples/execution_gateway_demo.py
+```
+
+See the reasoning behind it: [Why this exists](https://felixpg13-glitch.github.io/spendshield/why.html)
+
 ## 🏗️ The runtime — four layers
 
 ```
