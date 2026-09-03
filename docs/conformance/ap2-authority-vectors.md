@@ -19,12 +19,12 @@
 ## Status legend
 | Status | Meaning |
 |---|---|
-| **established** | expected verifier behavior is unambiguous (pass/fail) |
+| **established (for this draft)** | expected verifier behavior is unambiguous (pass/fail); treated as established for this draft, not an AP2 declaration |
 | **normative question** | expected behavior depends on an AP2 semantic not yet specified — recorded as `NORMATIVE_QUESTION`, not ALLOW/DENY |
 
 ---
 
-## C1 — closed → execution, checkout differs → integrity failure (established)
+## C1 — closed → execution, checkout differs → integrity failure (established for this draft)
 
 - **Mandate (closed):** binds `checkout_hash = H(checkout_A)`
 - **Execution input:** checkout_B, where `H(checkout_B) ≠ H(checkout_A)`
@@ -32,7 +32,7 @@
   not bind to a different checkout. Any serialized mutation voids the closed binding.
 - **Notes:** pure recomputation; no policy needed; independently verifiable.
 
-## C2 — open → closed, declared constraint true → valid derivation (established)
+## C2 — open → closed, declared constraint true → valid derivation (established for this draft)
 
 - **Mandate (open):** `amount ≤ 100`, `currency = USD`, `merchant ∈ {A, B}`
 - **Derived checkout:** `amount = 80`, `currency = USD`, `merchant = A`
@@ -40,7 +40,7 @@
   (all other gates permitting).
 - **Notes:** constraint evaluated per dimension against the derived checkout.
 
-## C3 — open → closed, declared constraint false → authority violation (established)
+## C3 — open → closed, declared constraint false → authority violation (established for this draft)
 
 - **Mandate (open):** `amount ≤ 100`, `currency = USD`, `merchant ∈ {A, B}`
 - **Derived checkout:** `amount = 150` (or `merchant = C`, `currency = EUR`)
