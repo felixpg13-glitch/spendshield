@@ -1,11 +1,11 @@
 [
   {
-    "event_id": "dc5f767193e34a41",
-    "ts": 1788423207.320739,
+    "event_id": "f5ba0117ce164aef",
+    "ts": 1788424016.755465,
     "engine_version": "0.8.3",
     "policy_version": "2.1.0",
     "policy_hash": "0847bcc016880543f77b181d751e43e01d9bb9fb709192a7f1ee7cb11f04cee0",
-    "request_id": "a5b4d4b98552",
+    "request_id": "04ec1a3366ef",
     "actor": "mcd_bot",
     "action": "authorize",
     "decision": "ALLOW",
@@ -19,18 +19,18 @@
     "meta": {
       "intent": "breakfast order",
       "initiated_by": "felix",
-      "request_id": "a5b4d4b98552"
+      "request_id": "04ec1a3366ef"
     },
     "previous_event_hash": "GENESIS",
-    "event_hash": "75d9ef04d23581b3fe436272beb9f1b1793f543534796d0b48abb48d1ff9f3c7"
+    "event_hash": "f04d984744b0ea78425174a0014fbaa27b27d6ef32b7bab0b3d676a70584e578"
   },
   {
-    "event_id": "5c0c427a7d3c496a",
-    "ts": 1788423207.3209448,
+    "event_id": "78708589b8624d2c",
+    "ts": 1788424016.755696,
     "engine_version": "0.8.3",
     "policy_version": "2.1.0",
     "policy_hash": "0847bcc016880543f77b181d751e43e01d9bb9fb709192a7f1ee7cb11f04cee0",
-    "request_id": "93692f34e974",
+    "request_id": "fa000a2777bd",
     "actor": "mcd_bot",
     "action": "authorize",
     "decision": "DENY",
@@ -46,18 +46,18 @@
     "meta": {
       "intent": "weekly pass",
       "initiated_by": "felix",
-      "request_id": "93692f34e974"
+      "request_id": "fa000a2777bd"
     },
-    "previous_event_hash": "75d9ef04d23581b3fe436272beb9f1b1793f543534796d0b48abb48d1ff9f3c7",
-    "event_hash": "75e3002c2db9b2d9c0cf2028a2cb51f23eb9eec64b1b633561711a580598a218"
+    "previous_event_hash": "f04d984744b0ea78425174a0014fbaa27b27d6ef32b7bab0b3d676a70584e578",
+    "event_hash": "6336dd8eb4a6e6fc6bbbc8a576f4a66abbee5ff8891eacc5614c06c06b4dc31b"
   },
   {
-    "event_id": "d0fe6026c0204a3e",
-    "ts": 1788423207.321054,
+    "event_id": "eec0aa2dcf254a15",
+    "ts": 1788424016.7558038,
     "engine_version": "0.8.3",
     "policy_version": "2.1.0",
     "policy_hash": "0847bcc016880543f77b181d751e43e01d9bb9fb709192a7f1ee7cb11f04cee0",
-    "request_id": "1a21954fcb6e",
+    "request_id": "2f8493dacfe1",
     "actor": "mcd_bot",
     "action": "authorize",
     "decision": "APPROVAL",
@@ -73,18 +73,18 @@
     "meta": {
       "intent": "catering order",
       "initiated_by": "felix",
-      "request_id": "1a21954fcb6e"
+      "request_id": "2f8493dacfe1"
     },
-    "previous_event_hash": "75e3002c2db9b2d9c0cf2028a2cb51f23eb9eec64b1b633561711a580598a218",
-    "event_hash": "c7e5d41a35cc8e78cc1fd9be7db89a9dd861654c348dbbed9d3ed4921f713d1e"
+    "previous_event_hash": "6336dd8eb4a6e6fc6bbbc8a576f4a66abbee5ff8891eacc5614c06c06b4dc31b",
+    "event_hash": "79ddca7aca1fa20a8e3c0272af2178cf812e59ec512214bb9767cc30f7f67c35"
   },
   {
-    "event_id": "f6d64e2ebffc40ed",
-    "ts": 1788423207.321151,
+    "event_id": "269a97e293874426",
+    "ts": 1788424016.755902,
     "engine_version": "0.8.3",
     "policy_version": "2.1.0",
     "policy_hash": "0847bcc016880543f77b181d751e43e01d9bb9fb709192a7f1ee7cb11f04cee0",
-    "request_id": "1a21954fcb6e",
+    "request_id": "2f8493dacfe1",
     "actor": "mcd_bot",
     "action": "approve[felix]",
     "decision": "ALLOW",
@@ -100,18 +100,18 @@
     "meta": {
       "intent": "catering order",
       "initiated_by": "felix",
-      "request_id": "1a21954fcb6e"
+      "request_id": "2f8493dacfe1"
     },
-    "previous_event_hash": "c7e5d41a35cc8e78cc1fd9be7db89a9dd861654c348dbbed9d3ed4921f713d1e",
-    "event_hash": "86cc1857723351dc803b6a1d654d11ce7c13e25b08b993bb97fb070bb026d900"
+    "previous_event_hash": "79ddca7aca1fa20a8e3c0272af2178cf812e59ec512214bb9767cc30f7f67c35",
+    "event_hash": "58b191b5715c0dfb755519464ed940a3720cb51918fd3a54cc4faf85bab37892"
   },
   {
-    "event_id": "7ccb6568f66b43db",
-    "ts": 1788423207.321234,
+    "event_id": "5f45151d09de4cb5",
+    "ts": 1788424016.755987,
     "engine_version": "0.8.3",
     "policy_version": "2.1.0",
     "policy_hash": "0847bcc016880543f77b181d751e43e01d9bb9fb709192a7f1ee7cb11f04cee0",
-    "request_id": "c635cb464271",
+    "request_id": "6ab47a4d3e39",
     "actor": "mcd_bot",
     "action": "authorize",
     "decision": "DENY",
@@ -127,14 +127,14 @@
     "meta": {
       "intent": "extra order",
       "initiated_by": "felix",
-      "request_id": "c635cb464271"
+      "request_id": "6ab47a4d3e39"
     },
-    "previous_event_hash": "86cc1857723351dc803b6a1d654d11ce7c13e25b08b993bb97fb070bb026d900",
-    "event_hash": "899663a39ad86d6f14cb6a27efa4ace42d4fdc6fb9e95cc44d5c8ab691a0cde6"
+    "previous_event_hash": "58b191b5715c0dfb755519464ed940a3720cb51918fd3a54cc4faf85bab37892",
+    "event_hash": "16e372e2a39541648e9104a3d9c48af492376866d42938a2f87a5ad8d48220c5"
   },
   {
-    "event_id": "a8600fe997844a3f",
-    "ts": 1788423207.321908,
+    "event_id": "13e4f12a047f4ec6",
+    "ts": 1788424016.756652,
     "engine_version": "0.8.3",
     "policy_version": "2.1.0",
     "policy_hash": "0847bcc016880543f77b181d751e43e01d9bb9fb709192a7f1ee7cb11f04cee0",
@@ -143,22 +143,22 @@
     "action": "policy_create",
     "decision": "EXECUTED",
     "reason_codes": [],
-    "primary_reason": "created draft f1d634affc85 (raise daily budget for breakfast week)",
+    "primary_reason": "created draft 6557cc4c7fb7 (raise daily budget for breakfast week)",
     "amount": 0.0,
     "currency": "",
     "merchant": "",
     "approval_state": "none",
     "input_hash": "",
     "meta": {
-      "draft": "f1d634affc85",
+      "draft": "6557cc4c7fb7",
       "policy": "raise daily budget for breakfast week"
     },
-    "previous_event_hash": "899663a39ad86d6f14cb6a27efa4ace42d4fdc6fb9e95cc44d5c8ab691a0cde6",
-    "event_hash": "67735c1308bd53abe797b15b3022364632765a7ec7b6a731e702edfd690c314c"
+    "previous_event_hash": "16e372e2a39541648e9104a3d9c48af492376866d42938a2f87a5ad8d48220c5",
+    "event_hash": "7fe4fd56832b417a124e7bf4a950dc6c7c5f75146cc31817055a6b26c64c8f92"
   },
   {
-    "event_id": "71392cd08f91410b",
-    "ts": 1788423207.3225229,
+    "event_id": "f9b6bd0359e54de1",
+    "ts": 1788424016.757285,
     "engine_version": "0.8.3",
     "policy_version": "2.1.1",
     "policy_hash": "0847bcc016880543f77b181d751e43e01d9bb9fb709192a7f1ee7cb11f04cee0",
@@ -174,15 +174,15 @@
     "approval_state": "none",
     "input_hash": "",
     "meta": {
-      "draft": "f1d634affc85",
+      "draft": "6557cc4c7fb7",
       "policy": "raise daily budget for breakfast week"
     },
-    "previous_event_hash": "67735c1308bd53abe797b15b3022364632765a7ec7b6a731e702edfd690c314c",
-    "event_hash": "843061320d8e34476c1af9268b7594d023bcd4ade0c0376d08a8ca53907fac3a"
+    "previous_event_hash": "7fe4fd56832b417a124e7bf4a950dc6c7c5f75146cc31817055a6b26c64c8f92",
+    "event_hash": "66951587c8aed3d1ea8cfe7c434122c302782fa749e337174e31b242efb43179"
   },
   {
-    "event_id": "0558da8f09884f49",
-    "ts": 1788423207.322597,
+    "event_id": "26762425e24247d6",
+    "ts": 1788424016.757362,
     "engine_version": "0.8.3",
     "policy_version": "2.1.1",
     "policy_hash": "0847bcc016880543f77b181d751e43e01d9bb9fb709192a7f1ee7cb11f04cee0",
@@ -198,15 +198,15 @@
     "approval_state": "none",
     "input_hash": "",
     "meta": {
-      "draft": "f1d634affc85",
+      "draft": "6557cc4c7fb7",
       "policy": "raise daily budget for breakfast week"
     },
-    "previous_event_hash": "843061320d8e34476c1af9268b7594d023bcd4ade0c0376d08a8ca53907fac3a",
-    "event_hash": "ed08644bb832a324dc7565dbf26acaae25f2b6c61525a84356ca06c14407712d"
+    "previous_event_hash": "66951587c8aed3d1ea8cfe7c434122c302782fa749e337174e31b242efb43179",
+    "event_hash": "88e8e866c83777f1633f8a77eb13f195ba4503ed5d56877198f6b59d646fe861"
   },
   {
-    "event_id": "ec5f98b3774d490b",
-    "ts": 1788423207.322634,
+    "event_id": "539b42bab0bf486d",
+    "ts": 1788424016.7574,
     "engine_version": "0.8.3",
     "policy_version": "2.1.1",
     "policy_hash": "0847bcc016880543f77b181d751e43e01d9bb9fb709192a7f1ee7cb11f04cee0",
@@ -222,15 +222,15 @@
     "approval_state": "none",
     "input_hash": "",
     "meta": {
-      "draft": "f1d634affc85",
+      "draft": "6557cc4c7fb7",
       "policy": "raise daily budget for breakfast week"
     },
-    "previous_event_hash": "ed08644bb832a324dc7565dbf26acaae25f2b6c61525a84356ca06c14407712d",
-    "event_hash": "5c6781bef5a314415e9d62d771cb291c1d1d570b2e1ef73f71d602b328fa9ba4"
+    "previous_event_hash": "88e8e866c83777f1633f8a77eb13f195ba4503ed5d56877198f6b59d646fe861",
+    "event_hash": "1af1fe3fe14f257ffe3557e1131db7f106a7aaf81622d3b7b73a9c12544dad5a"
   },
   {
-    "event_id": "525c907ddfde4582",
-    "ts": 1788423207.322665,
+    "event_id": "0b754eb281294cd8",
+    "ts": 1788424016.757431,
     "engine_version": "0.8.3",
     "policy_version": "2.1.1",
     "policy_hash": "0847bcc016880543f77b181d751e43e01d9bb9fb709192a7f1ee7cb11f04cee0",
@@ -246,15 +246,15 @@
     "approval_state": "none",
     "input_hash": "",
     "meta": {
-      "draft": "f1d634affc85",
+      "draft": "6557cc4c7fb7",
       "policy": "raise daily budget for breakfast week"
     },
-    "previous_event_hash": "5c6781bef5a314415e9d62d771cb291c1d1d570b2e1ef73f71d602b328fa9ba4",
-    "event_hash": "fb7e70fa6661838941407dd290daad9b82865cb56ac38a4414d1bb4c5e9e444c"
+    "previous_event_hash": "1af1fe3fe14f257ffe3557e1131db7f106a7aaf81622d3b7b73a9c12544dad5a",
+    "event_hash": "3907e2587a1feca89f340d7310be515a024303b3bc2581e3c329f474cb2654ef"
   },
   {
-    "event_id": "eacdbecc56494e4e",
-    "ts": 1788423207.322738,
+    "event_id": "22c62a2f96ab4c9b",
+    "ts": 1788424016.757494,
     "engine_version": "0.8.3",
     "policy_version": "2.1.1",
     "policy_hash": "cd5acd4c8f514d49af1f7d236a4f45ba910099d12747915c842ea339ebbbfbd3",
@@ -270,19 +270,19 @@
     "approval_state": "none",
     "input_hash": "",
     "meta": {
-      "draft": "f1d634affc85",
+      "draft": "6557cc4c7fb7",
       "policy": "raise daily budget for breakfast week"
     },
-    "previous_event_hash": "fb7e70fa6661838941407dd290daad9b82865cb56ac38a4414d1bb4c5e9e444c",
-    "event_hash": "b397db7ae5045a67c15a853111aa672d62aa46f5a3e28e807be064da02507c27"
+    "previous_event_hash": "3907e2587a1feca89f340d7310be515a024303b3bc2581e3c329f474cb2654ef",
+    "event_hash": "b1a2e7a6246ac5ec43afc88b4d99ff06fb36bf0c9d70caa50f495a3c76f2a979"
   },
   {
-    "event_id": "2156b56b0e934ab4",
-    "ts": 1788423207.3228312,
+    "event_id": "03066dea64d54562",
+    "ts": 1788424016.7575822,
     "engine_version": "0.8.3",
     "policy_version": "2.1.1",
     "policy_hash": "cd5acd4c8f514d49af1f7d236a4f45ba910099d12747915c842ea339ebbbfbd3",
-    "request_id": "8d4cb455f957",
+    "request_id": "704c3118e455",
     "actor": "mcd_bot",
     "action": "authorize",
     "decision": "ALLOW",
@@ -296,9 +296,9 @@
     "meta": {
       "intent": "extra order under v2",
       "initiated_by": "felix",
-      "request_id": "8d4cb455f957"
+      "request_id": "704c3118e455"
     },
-    "previous_event_hash": "b397db7ae5045a67c15a853111aa672d62aa46f5a3e28e807be064da02507c27",
-    "event_hash": "6edcb899cd943c086174ea945d9233a0660d95fc83a3668adfeced833f89237a"
+    "previous_event_hash": "b1a2e7a6246ac5ec43afc88b4d99ff06fb36bf0c9d70caa50f495a3c76f2a979",
+    "event_hash": "750ff0e5a2534ecc27651bbdf16d000793f73bbab22fd71e1a2e15d1d28bd2ab"
   }
 ]
