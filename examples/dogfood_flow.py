@@ -118,4 +118,13 @@ if __name__ == "__main__":
     line("evidence: full audit trail exported below", "-")
     out = os.path.join(HERE, "..", "docs", "dogfood_audit.json")
     path = shield.export_audit(os.path.abspath(out))
-    print("audit ->", os.path.abspath(path), flush=True)
+    print("audit records ->", os.path.abspath(path), flush=True)
+    # 哈希链(防篡改证据层): 含 authorize/approve + 全部 policy 生命周期事件
+    ch_ok, ch_msg = shield.audit.verify_chain()
+    print("hash chain    -> %s (%s)" % (ch_ok and "INTACT" or "BROKEN", ch_msg), flush=True)
+    import collections
+    acts = collections.Counter(ev.action for ev in shield.audit.events)
+    print("chain events  -> %d events: %s" % (len(shield.audit.events), dict(acts)), flush=True)
+    ch_path = os.path.abspath(os.path.join(HERE, "..", "docs", "dogfood_audit_chain.json"))
+    shield.audit.export_json(ch_path)
+    print("chain export  ->", ch_path, flush=True)

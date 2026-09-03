@@ -7,7 +7,7 @@ B2  agent tries weekly pass, $75 @ mcdonalds.com (over $50 cap)
   [DENY] $75.00 -> mcdonalds.com | transaction $75.00 exceeds the $50.00 limit
 B3  agent tries catering order, $30 @ mcdonalds.com (>$25 needs human)
   [APPROVAL] $30.00 -> mcdonalds.com | amount $30.00 exceeds the $25.00 approval threshold
-    human reviews approval b20f86a98936 ... approves
+    human reviews approval 606878369851 ... approves
     [ALLOW] after human approval: approved
 B4  agent adds $10 @ mcdonalds.com (25 + 30 = 55; +10 > daily $60)
   [DENY] $10.00 -> mcdonalds.com | daily spend $55.00 + $10.00 exceeds the $60.00 daily budget
@@ -22,4 +22,7 @@ B6  attacker bypasses the gate: calls the rail directly
 ==============================================================
 decisions: ALLOW x3, DENY x2, APPROVAL x1 (human-approved) + bypass REFUSED x2
 evidence: full audit trail exported below
-audit -> /Users/book/projects/spendguard/docs/dogfood_audit.json
+audit records -> /Users/book/projects/spendguard/docs/dogfood_audit.json
+hash chain    -> INTACT (chain ok (12 events))
+chain events  -> 12 events: {'authorize': 5, 'approve[felix]': 1, 'policy_create': 1, 'policy_validate': 1, 'policy_simulate': 1, 'policy_scan': 1, 'policy_review': 1, 'policy_apply': 1}
+chain export  -> /Users/book/projects/spendguard/docs/dogfood_audit_chain.json
