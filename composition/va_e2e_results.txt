@@ -1,0 +1,5 @@
+Traceback (most recent call last):
+  File "/Users/book/projects/spendguard/composition/va_e2e_authorize_payment.py", line 20, in <module>
+    from verb_authority import Param, Risk, Tool, Registry, build_policy, GuardedToolRunner  # noqa: E402
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ModuleNotFoundError: No module named 'verb_authority'
