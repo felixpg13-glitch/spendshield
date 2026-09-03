@@ -8,7 +8,10 @@
 > Every payment an agent tries to make goes through one `authorize()` call — **ALLOW / APPROVAL (human) / DENY** — before money moves.
 
 [![PyPI version](https://img.shields.io/pypi/v/spendshield)](https://pypi.org/project/spendshield/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/spendshield)](https://pypi.org/project/spendshield/)
 [![Tests](https://img.shields.io/badge/tests-259%20passing-brightgreen)](https://github.com/felixpg13-glitch/spendshield/actions)
+[![MCP Registry](https://img.shields.io/badge/MCP%20Registry-io.github.felixpg13--glitch/spendshield-0ea5e9)](https://registry.modelcontextprotocol.io/)
+[![Glama score](https://glama.ai/mcp/servers/felixpg13-glitch/spendshield/badges/score.svg)](https://glama.ai/mcp/servers/felixpg13-glitch/spendshield)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
