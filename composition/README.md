@@ -6,7 +6,7 @@ Verb Authority maintainer from clean checkouts (SpendShield `83f2a415…`, VA `5
 The evaluator then identified three composition-evidence gaps (artifact integrity,
 canonical source-binding, incomplete grant lifecycle). All three were corrected and
 re-pinned at `0acb2e5`; **full VA → SpendShield composition evidence is not yet frozen —
-it awaits the evaluator's clean-checkout re-confirmation after these corrections.**
+it now includes the evaluator's final load-bearing requirement (source-bound negative probes). Awaiting clean-checkout re-confirmation before recording as frozen.**
 
 This is not a self-test claim. It is an external adversarial review cycle in progress:
 independent reproduction → evidence-gap findings → correction → pending re-confirmation.
