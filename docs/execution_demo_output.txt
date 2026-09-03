@@ -1,0 +1,23 @@
+SpendShield execution demo — no authorization, no execution
+policy: daily $60 / single-tx $50 / merchant allowlist (policy.dogfood.yaml)
+
+case 1: agent legitimately buys breakfast, $25 @ mcdonalds.com
+  authorize -> [ALLOW] grant issued (policy v2.1.0)
+  [gateway] call 1 (valid grant) -> EXECUTES (grant verified AUTHORIZED)
+        first call  -> SUCCESS
+  [gateway] call 2 (same token again) -> REFUSED (REUSED)
+        second call -> REFUSED
+
+case 2: attacker tries the rail with no grant
+  [gateway] direct call, no token -> REFUSED (MALFORMED_TOKEN)
+         REFUSED
+
+case 3: attacker forges a $500 grant with their own key
+  [gateway] forged grant -> REFUSED (INVALID_SIGNATURE)
+         REFUSED
+
+case 4: attacker tampers with a real grant (bumps $25 -> $5000)
+  [gateway] tampered grant -> REFUSED (INVALID_SIGNATURE)
+         REFUSED
+
+summary: 1 execute, 3 refusals — the gateway only moves money with a valid, unconsumed, un-forgeable grant.

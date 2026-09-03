@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Why SpendShield exists</title>
+<style>
+  body { font-family: -apple-system, "SF Pro Text", Segoe UI, Roboto, sans-serif;
+         max-width: 640px; margin: 64px auto; padding: 0 20px; color: #1a1a1a;
+         background: #fff; line-height: 1.6; }
+  h1 { font-size: 1.7rem; letter-spacing: -0.02em; }
+  h2 { font-size: 1.15rem; margin-top: 2.2rem; }
+  code, pre { font-family: ui-monospace, SF Mono, Menlo, monospace; }
+  pre { background: #f6f8fa; padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+        font-size: .85rem; line-height: 1.5; }
+  .muted { color: #666; }
+</style>
+</head>
+<body>
+<h1>The problem</h1>
+<p>Agents can now call APIs, buy services, and trigger paid actions.
+Policy checks alone are not enough &mdash; <strong>an agent can simply ignore the check</strong>.
+If the execution path does not <em>require</em> authorization, the policy is an opinion, not a gate.</p>
+
+<h2>The model</h2>
+<pre>NO authorization &rarr; NO execution</pre>
+
+<p>Agent &rarr; SpendShield &rarr; authorization receipt &rarr; Execution Gateway &rarr; Payment</p>
+
+<pre>
+  agent
+   |
+   v
+SpendShield ── policy: ALLOW / APPROVAL / DENY
+   |
+   | ALLOW -> one-time authorization receipt (signed grant)
+   v
+Execution Gateway ── verifies receipt, then and only then:
+   |
+   v
+  Payment
+</pre>
+
+<p class="muted">One-time receipt: replay a spent grant &rarr; refused. Forge one &rarr; refused.
+No receipt &rarr; refused. The gateway only moves money with a valid, unconsumed grant.</p>
+
+<p><a href="https://github.com/felixpg13-glitch/spendshield">SpendShield on GitHub</a> &middot;
+<a href="demo.html">watch the demo</a> &middot;
+<a href="execution_demo_output.txt">execution demo output</a></p>
+</body>
+</html>
