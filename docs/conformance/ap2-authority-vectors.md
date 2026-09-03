@@ -14,12 +14,13 @@
 >   (amount, currency, merchant, recurrence, delivery window, …).
 > - "derived checkout": a checkout produced under an open mandate.
 > - A dimension the mandate **never names** is *authority-underspecified*.
+- Expected status for open normative cases is recorded as the literal `NORMATIVE_QUESTION`.
 
 ## Status legend
 | Status | Meaning |
 |---|---|
-| **established** | expected verifier behavior is unambiguous |
-| **normative question** | expected behavior depends on an AP2 semantic not yet specified |
+| **established** | expected verifier behavior is unambiguous (pass/fail) |
+| **normative question** | expected behavior depends on an AP2 semantic not yet specified — recorded as `NORMATIVE_QUESTION`, not ALLOW/DENY |
 
 ---
 
@@ -47,13 +48,15 @@
 - **Notes:** a dimension outside every declared constraint is not "authorized" merely
   because it is unconstrained *by that constraint*; see C4 for the naming case.
 
-## C4 — open → closed, unnamed authority-bearing dimension → normative question (open)
+## C4 — open → closed, unnamed authority-bearing dimension → NORMATIVE_QUESTION
 
-- **Mandate (open):** `amount ≤ 100` — `merchant` is **never named**
-- **Derived checkout:** `amount = 80`, `merchant = X`
-- **Expected:** **unresolved.** What MUST a conforming AP2 verifier do when the derived
-  checkout contains an authority-bearing dimension the open mandate does not express?
-  This vector intentionally records the *question*, not an answer.
+- **Mandate (open):** `amount ≤ 100`, `currency = USD`, `merchant = A` —
+  **`delivery window` is never named**
+- **Derived checkout:** `amount = 80`, `currency = USD`, `merchant = A`,
+  `delivery = Saturday`
+- **Expected:** **`NORMATIVE_QUESTION`** — not ALLOW, not DENY. What MUST a
+  conforming AP2 verifier do when the derived checkout exercises an authority-bearing
+  dimension (delivery timing) that the open mandate never represented?
 - **Candidate semantics once AP2 specifies omission:**
   - *not delegated* → C4 must not pass without renewed authorization;
   - *unconstrained* → C4 passes on this dimension;
