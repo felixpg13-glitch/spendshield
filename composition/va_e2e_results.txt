@@ -1,5 +1,19 @@
-Traceback (most recent call last):
-  File "/Users/book/projects/spendguard/composition/va_e2e_authorize_payment.py", line 20, in <module>
-    from verb_authority import Param, Risk, Tool, Registry, build_policy, GuardedToolRunner  # noqa: E402
-    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-ModuleNotFoundError: No module named 'verb_authority'
+VA × SpendShield E2E — authorize_payment composition (source-bound, full-chain)
+params: recipient/amount/agent_id sink=TRUSTED_FIXED · purpose writable
+
+[PASS] 1. trusted recipient+amount fixed, model writes purpose       -> 1
+        invoked=1 (expect 1) | allow=True | 
+[PASS] 2. model changes amount (trusted fixed)                       -> 0
+        invoked=0 (expect 0) | allow=False | 
+[PASS] 2b. model changes recipient (trusted fixed)                   -> 0
+        invoked=0 (expect 0) | allow=False | 
+[PASS] 3. protected values without independent trusted_args binding  -> 0
+        invoked=0 (expect 0) | allow=False | 
+[PASS] 4. model supplies unknown source-shaped param in payload      -> 0
+        invoked=0 (expect 0) | allow=False | 
+[PASS] 4b. schema-legal spoof: source-claims inside writable purpose -> 1 (binding stays host-owned)
+        invoked=1 (expect 1) | allow=True | 
+[PASS] 5. only purpose changes while protected values remain bound   -> 1
+        invoked=1 (expect 1) | allow=True | 
+
+ALL PASS — full chain asserted (VA allow · handler invoked · independent counter · SpendShield ALLOW · source-bound grant verified via Executor)

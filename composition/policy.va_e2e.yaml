@@ -1,0 +1,18 @@
+# Composition test policy — isolates VA/composition chain from budget mechanics
+version: "2.1.0"
+policy:
+  budget:
+    daily: 1000
+  transaction:
+    max: 100
+  merchants:
+    allowed:
+      - mcdonalds.com
+    blocked:
+      - scam-vip.com
+  approval:
+    over: 100
+    new_merchant: false
+    channel: ""
+agents:
+  mcd_bot: {}
