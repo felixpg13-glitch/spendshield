@@ -49,6 +49,10 @@ class X402IntentClient:
     def __init__(self, guard: SpendShield, store: SqliteIntentStore):
         self.guard = guard
         self.store = store
+        # per-client (per-process) cache 物化记录: 已把哪些 ledger booking 投映进
+        # 本 guard 的内存 estate (guard.book = cache projection; 同一 client 重复
+        # recover/complete 不重复投映, 新进程新 client 则从 ledger 全量重建基线)
+        self._cache_materialized: set[int] = set()
 
     # ── protect: 授权 → durable reservation → claim dispatch ──────────
     def protect(self, agent: str, to: str, amount: float, idem_key: str,
@@ -121,9 +125,11 @@ class X402IntentClient:
             # st == SUCCEEDED → 直接走 settle (幂等)
             if self.store.consume_once(intent_id):
                 # durable booking 已 commit → guard.book = cache projection
-                self.guard.book(agent=intent["agent"], amount=intent["amount"],
-                                to=intent["to"])
+                self._materialize(intent)
                 return True
+            # 已由其它进程/恢复 book 过 → 本进程 cache 若缺, 仍要投映 (基线重建)
+            if intent["booked"]:
+                self._materialize(intent)
             return False
         if outcome == "failed":
             if st in (SUCCEEDED, RECONCILED_FAILED):
@@ -172,10 +178,29 @@ class X402IntentClient:
                 indeterminate += 1  # INDETERMINATE / 未知 → fail-closed
         # ② booking pass: durable → cache
         for it in self.store.list_by_status(SUCCEEDED):
-            if self.store.consume_once(it["id"]):
-                self.guard.book(agent=it["agent"], amount=it["amount"], to=it["to"])
+            if it["booked"]:
+                # ledger 存量 (可能是上个进程 book 的) → 物化进本进程 cache = 基线重建
+                self._materialize(it)
+            elif self.store.consume_once(it["id"]):
+                # 新补的 durable booking → book + 物化
+                self._materialize(it)
                 booked += 1
         return {"booked": booked, "failed": failed, "indeterminate": indeterminate}
+
+    # ── 内部: cache 物化 (每个 intent 对本 guard 恰好一次) ─────────────
+    def _materialize(self, intent: dict) -> bool:
+        """把 ledger 里的 durable booking 投映进 guard 内存 estate (cache projection)。
+
+        同一 client 对同一 intent 只物化一次 (幂等), 防重复 recover 双倍投映。
+        ledger row 才是 correctness boundary; 本方法只是让活进程的预算视图正确。
+        """
+        iid = intent["id"]
+        if iid in self._cache_materialized:
+            return False
+        self.guard.book(agent=intent["agent"], amount=intent["amount"],
+                        to=intent["to"])
+        self._cache_materialized.add(iid)
+        return True
 
     # ── 内部 ──────────────────────────────────────────────────────────
     @staticmethod
