@@ -164,6 +164,18 @@ class SqliteIntentStore:
             return self._row_to_dict(row, booked)
         return self._read(_q)
 
+    def list_by_status(self, *statuses: str) -> list[dict]:
+        """只读: 按状态列出 intent (Phase C 集成/recovery 用; 不改变任何语义)。"""
+        def _q(conn):
+            if not statuses:
+                return []
+            marks = ",".join("?" * len(statuses))
+            rows = conn.execute(
+                f"SELECT * FROM intents WHERE status IN ({marks}) ORDER BY id",
+                statuses).fetchall()
+            return [self._row_to_dict(r, self._is_booked(conn, r["id"])) for r in rows]
+        return self._read(_q)
+
     # ── 创建 (幂等 create-or-get + fingerprint 冲突) ──────────────────
     def create_or_get(self, agent: str, to: str, idem_key: str, amount: float,
                       fingerprint: dict, currency: str = "USD") -> dict:
