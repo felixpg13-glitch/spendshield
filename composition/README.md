@@ -30,6 +30,15 @@ AUTHORIZED)**, plus merchant supplemental probes D (merchant omitted at issuance
 SOURCE_MISSING:merchant), E (merchant replaced → SOURCE_MISMATCH:merchant), F (verifier
 omits merchant → SOURCE_MISSING:merchant). `va_e2e_results.txt` is the frozen stdout.
 
+## 0/1 trusted-path run (promised experiment, 2026-09-04)
+
+`va_01_trusted_path.py` — amount fixed through the host trusted path at 1:
+- model sends amount=1 (exact trusted value) -> **exactly 1 handler invocation**, ALLOW
+- model sends amount=0 (changed) -> **0 invocations**, blocked pre-dispatch
+Observed stdout frozen in `va_01_results.txt`. This is the formal 0/1 run promised
+on VA issue #7; it demonstrates the same trusted_args boundary the 7-case harness
+exercises, in the 0-vs-1 shape requested.
+
 ## Pins
 - Host: felixpg13-glitch/spendshield — composition chain `0acb2e5` → probes `31e584b`
   → merchant probes (this commit); external clean-checkout reproduction pinned `31e584b`

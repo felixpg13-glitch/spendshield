@@ -1,0 +1,14 @@
+0/1 trusted-path run — trusted amount fixed at 1 (host side, outside model envelope)
+====================================================================
+[model sends amount=1 (exact trusted value)]
+    handler invocations = 1   (independent counter)
+    runner.invoked      = True
+    allow               = False
+    handler decision    = None
+
+[model sends amount=0 (changed from trusted 1)]
+    handler invocations = 0   (independent counter)
+    runner.invoked      = False
+    allow               = False
+
+observed: exact-value attempt -> 1 invocation(s); changed-value attempt -> 0 invocation(s)

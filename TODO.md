@@ -68,3 +68,4 @@ AI Agent 付款安全层（99 元事故的产物）。Python 生态 + 血泪故�
 - 姿势: 不 All-in(不追功能不运营), 低成本持有 + 绑定自己场景(AirGuard/麦当当) + AP2落地时发v1.0抢Python首选位
 - **主线仍是 AirGuard**, SpendShield 当彩蛋养
 - [x] **export_audit 合并 AuditLog 链**(2026-09-03 dogfood 发现 → 当天修复): export_audit() 只导 self.records(v1 列表), 而 v2 authorize + policy 生命周期事件全在 self.audit(哈希链 AuditLog, 有自己的 export_json/verify_chain)。合规导出场景应合并两条源(按 ts 排序)或至少提供 chain+records 双导出, 否则"策略变更审计"在 export 产物里缺失。harness 现双导出兜底(records + chain json)
+- [x] **VA 0/1 实验(2026-09-04 兑现)**: composition/va_01_trusted_path.py — trusted amount=1 → 模型传 1 = 1 次调用 ALLOW; 改成 0 = 0 次调用被阻断; 输出 composition/va_01_results.txt; 已回报 VA Issue #7
