@@ -10,7 +10,7 @@ Observed result is printed; exit 0 iff the experiment itself ran cleanly.
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 sys.path.insert(0, "/tmp/va_runpkg")  # pinned verb-authority source (VA main 5ef6e110)
 
 from verb_authority import Param, Risk, Tool, Registry, build_policy, GuardedToolRunner  # noqa: E402
@@ -24,10 +24,13 @@ INVOKED = {"n": 0}
 
 
 def authorize_payment_handler(recipient, amount, purpose, agent_id):
+    """与已验证的 composition/va_e2e_authorize_payment.py handler 同语义。"""
     INVOKED["n"] += 1
     res = shield.authorize(agent=agent_id, amount=amount, to=recipient,
                            meta={"intent": purpose})
-    return {"decision": res.decision, "reason": getattr(res, "reason", "")}
+    if res.decision != "ALLOW":
+        return {"decision": res.decision, "reason": getattr(res, "reason", "")}
+    return {"decision": "ALLOW"}
 
 
 reg = Registry()
@@ -61,7 +64,10 @@ def attempt(label, agent_args):
     return INVOKED["n"]
 
 
+import spendshield as _ss
 print("0/1 trusted-path run — trusted amount fixed at 1 (host side, outside model envelope)")
+print(f"spendshield version : {getattr(_ss, '__version__', 'unknown')}")
+print(f"verb-authority pin  : 5ef6e1109120 (module source: /tmp/va_runpkg, same env as the 7-case harness)")
 print("=" * 68)
 n_exact = attempt("model sends amount=1 (exact trusted value)",
                   {**TRUSTED, "amount": 1, "purpose": "order breakfast"})

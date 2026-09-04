@@ -1,10 +1,12 @@
 0/1 trusted-path run — trusted amount fixed at 1 (host side, outside model envelope)
+spendshield version : 0.8.3
+verb-authority pin  : 5ef6e1109120 (module source: /tmp/va_runpkg, same env as the 7-case harness)
 ====================================================================
 [model sends amount=1 (exact trusted value)]
     handler invocations = 1   (independent counter)
     runner.invoked      = True
-    allow               = False
-    handler decision    = None
+    allow               = True
+    handler decision    = ALLOW
 
 [model sends amount=0 (changed from trusted 1)]
     handler invocations = 0   (independent counter)
