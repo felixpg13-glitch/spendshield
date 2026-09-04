@@ -46,6 +46,14 @@ fingerprint = {recipient, amount, currency, resource, payment_method}
   - different resource = different scope = independent intent
     (cv-scvd: never a wrong cached hit)
 - `provider_key` generated once at RESERVED, persisted, **reused on retry**.
+- **Fingerprint contract**: `fingerprint` is an *already-canonical request identity*,
+  not arbitrary request JSON. Callers build it from normalized primitives
+  (`amount` as `float(...)`); the store compares canonical JSON byte-exact
+  (`10` vs `10.0` serialize differently and count as different requests).
+- **Amount structural validation (store-level, not full policy)**: bool / NaN /
+  ±Infinity are rejected with `ValueError` — a durable ledger does not accept
+  accounting values it cannot represent reliably. Sign (negative amounts) is a
+  policy-layer decision.
 
 ## 3. State machine & transition table
 
@@ -121,6 +129,18 @@ consume_once(intent_id):           # one durable commit boundary
 At-most-once: booking row PK + single txn admits one booker per intent, ever.
 At-least-once: startup replay inserts any missing booking row for a SUCCEEDED intent.
 Crash anywhere: no durable side effect until COMMIT; after COMMIT the row exists and estate cache rebuilds from it. The window "consumed but unbooked" cannot exist because there is no consumed marker apart from the booking row itself.
+
+### Cancel & terminal paths (review fix #2/#6)
+`active=0` (scope release) has exactly two legal paths:
+1. `reconcile(outcome=RECONCILED_FAILED, proof=...)` — proof is trusted rail
+   evidence that the prior external execution did **not** occur (UNKNOWN path).
+2. `cancel_reserved()` from RESERVED — the durable state itself proves the
+   intent was never dispatched through this flow (no proof needed; it is NOT
+   the same trust level as rail-backed reconciliation).
+UNKNOWN must never release scope merely because "timeout was long ago" —
+UNKNOWN ≠ retry allowed. API naming (review fix #7): `create_or_get()` = creates
+the durable reservation; `reserve()` = pre-dispatch eligibility check (not an
+atomic reservation operation).
 
 ### Legacy path (explicitly out of the new contract)
 Non-intent `guard.book()` calls (e.g. server-side `X402PaywallGuard.confirm_payment` today) stay in-memory as today — unchanged semantics, documented as not restart-durable. Only intent-path payments claim the durable exactly-once contract in v1.

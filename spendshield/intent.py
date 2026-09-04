@@ -12,25 +12,37 @@ v1 边界 (Felix 2026-09-04 确认):
   - 单逻辑 estate / 单写者部署; 多进程共享预算 = 明确 out of scope
 
 状态机:
-    RESERVED ──► IN_FLIGHT ──► SUCCEEDED ──(consume_once)──► [booked in ledger]
-                    │
-                    └──► UNKNOWN ──reconcile──► SUCCEEDED
-                                  └──────────► RECONCILED_FAILED (active=0, 可重试)
+    RESERVED ──┬─ mark_in_flight() ──► IN_FLIGHT ──┬─ mark_succeeded() ──► SUCCEEDED ──(consume_once)──► [booked in ledger]
+               └─ cancel_reserved() ─► RECONCILED_FAILED (active=0, 可重试)
+                                                 IN_FLIGHT └─ mark_unknown() ──► UNKNOWN ──reconcile(proof)──► SUCCEEDED
+                                                                                                             └──► RECONCILED_FAILED
+
+active=0 的唯一两条合法路径 (review fix #2):
+  1. reconcile(outcome=RECONCILED_FAILED, proof=...) — proof 证明 prior external execution 未发生
+  2. cancel_reserved() from RESERVED — durable state 自证从未 dispatch
+  (UNKNOWN 绝不能因 timeout 久了就随便释放 scope — UNKNOWN ≠ retry allowed)
 
 方法 (Felix API 草案 + 测试契约, 见 tests/test_intent_exactly_once.py):
     create_or_get(agent, to, idem_key, amount, fingerprint, currency="USD")
     reserve(id) / mark_in_flight(id) / mark_succeeded(id) / mark_unknown(id)
-    reconcile(id, outcome, proof) / consume_once(id) / replay_succeeded()
-    get(id)
+    cancel_reserved(id) / reconcile(id, outcome, proof)
+    consume_once(id) / replay_succeeded() / get(id)
 
-Semantics 约定:
-  - False = 良性竞争结果 (claim 输了 / no-op), 调用方走 reconciliation
-  - raise InvalidTransition = 逻辑错误 / 试图绕过 invariant (如 UNKNOWN 直接 mark_succeeded)
-  - consume_once: IntegrityError(重复 booking) → False; 其它 DB 错误 → raise
+语义约定:
+  - False = 良性结果 (claim 输了 / 幂等 no-op), 调用方走 reconciliation
+  - raise InvalidTransition = 逻辑错误 / 试图绕过 invariant (dispatch boundary 不可模糊)
+  - fingerprint 契约: **fingerprint 是 already-canonical request identity, 不是任意
+    request JSON** — 调用方必须用归一化原语构造 (amount 先 float()), store 按 canonical
+    JSON 字节精确比较 (10 vs 10.0 序列化不同 → 视为不同请求)
+  - create_or_get() = 建立 durable reservation (idempotency scope 从此被占)
+  - reserve() = pre-dispatch eligibility check (不是 atomic reservation op)
+  - consume_once: 只有 intent_id 已有 booking 的 IntegrityError 才算 already-consumed → False;
+    其它 integrity 故障 (booking_id 碰撞/FK/schema) → raise, 绝不伪装成已消费
 """
 from __future__ import annotations
 
 import json
+import math
 import secrets
 import sqlite3
 import threading
@@ -58,7 +70,7 @@ CREATE TABLE IF NOT EXISTS intents (
   provider_key  TEXT NOT NULL UNIQUE,
   status        TEXT NOT NULL,
   proof         TEXT,
-  active        INTEGER NOT NULL DEFAULT 1, -- 0 = 终态失败, 释放 scope 供重试
+  active        INTEGER NOT NULL DEFAULT 1, -- 0 = RECONCILED_FAILED (proven/cancelled), 释放 scope
   created_at    TEXT NOT NULL,
   updated_at    TEXT NOT NULL
 );
@@ -81,13 +93,12 @@ def _now() -> str:
 
 
 def _canon_fp(fingerprint: Any) -> str:
-    """指纹规范化: 同一逻辑请求必须生成同一字符串。"""
+    """指纹规范化: 同一逻辑请求必须生成同一字符串 (键序无关, Unicode 不转义)。
+
+    注意: 数值类型不做等价 (10 → "10" vs 10.0 → "10.0") — 这是刻意的字符串精确比较,
+    契约要求调用方用归一化原语构造 fingerprint (already-canonical request identity)。
+    """
     return json.dumps(fingerprint, sort_keys=True, ensure_ascii=False)
-
-
-def _status_ok(status: str) -> None:
-    if status not in (RESERVED, IN_FLIGHT, SUCCEEDED, UNKNOWN, TERMINAL_FAILED):
-        raise InvalidTransition(f"unknown status {status!r}")
 
 
 class IntentConflict(Exception):
@@ -114,7 +125,7 @@ class SqliteIntentStore:
 
     # ── 内部: 写事务 (BEGIN IMMEDIATE) ────────────────────────────────
     def _write(self, fn):
-        """fn(conn) -> value; 单写事务, 失败回滚。"""
+        """fn(conn) -> value; 单写事务 (BEGIN IMMEDIATE), 失败回滚。"""
         with self._lock:
             conn = self._conn
             conn.execute("BEGIN IMMEDIATE")
@@ -137,7 +148,7 @@ class SqliteIntentStore:
         d = dict(row)
         d["booked"] = booked
         d["to"] = d["recipient"]          # 别名: 测试契约用 to
-        d["resource"] = d["recipient"]  # 别名: 设计文档用 resource
+        d["resource"] = d["recipient"]    # 别名: 设计文档用 resource
         d["fingerprint"] = json.loads(d["fingerprint"])
         return d
 
@@ -156,10 +167,22 @@ class SqliteIntentStore:
     # ── 创建 (幂等 create-or-get + fingerprint 冲突) ──────────────────
     def create_or_get(self, agent: str, to: str, idem_key: str, amount: float,
                       fingerprint: dict, currency: str = "USD") -> dict:
+        """建立 durable reservation (幂等 create-or-get)。
+
+        - 同 scope 同 fingerprint → 返回已有 intent (含持久化的 provider_key)
+        - 同 scope 异 fingerprint → IntentConflict
+        - RECONCILED_FAILED (active=0) 释放 scope 后 → 开全新 intent (新 provider_key)
+        structural validation (review fix #3): bool/NaN/±Inf → ValueError —
+        非有限数值不能进 durable ledger (业务 policy 校验在上游 guard)。
+        """
         agent_s = agent if isinstance(agent, str) else str(agent)
         to_s = to if isinstance(to, str) else str(to)
         idem_s = idem_key if isinstance(idem_key, str) else str(idem_key)
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)):
+            raise ValueError(f"amount must be a finite int/float, got {amount!r}")
         amount_f = float(amount)
+        if not math.isfinite(amount_f):
+            raise ValueError(f"amount must be finite, got {amount!r}")
         fp_s = _canon_fp(fingerprint)
 
         def _create(conn):
@@ -173,7 +196,7 @@ class SqliteIntentStore:
                         f"idempotency key conflict: same scope (agent={agent_s}, to={to_s}, "
                         f"key={idem_s}) reused with a different request fingerprint")
                 return self._row_to_dict(row, self._is_booked(conn, row["id"]))
-            # 2) 新建 RESERVED (provider_key 持久化, 重试复用)
+            # 2) 新建 RESERVED (provider_key 生成一次并持久化, 重试复用; 调用方不可自供)
             provider_key = secrets.token_hex(16)
             ts = _now()
             cur = conn.execute(
@@ -186,14 +209,15 @@ class SqliteIntentStore:
 
         try:
             return self._write(_create)
-        except sqlite3.IntegrityError:
-            # 并发双写撞 UNIQUE(active scope): 胜者已提交 → 重读并走幂等/冲突判定
+        except sqlite3.IntegrityError as e:
+            # 并发双写撞 UNIQUE(active scope): 重读 winner 裁决;
+            # 重读不到 winner → 不是并发 scope race → 原样抛回原异常 (review fix #5)
             def _retry(conn):
                 row = conn.execute(
                     "SELECT * FROM intents WHERE agent=? AND recipient=? AND idem_key=? AND active=1",
                     (agent_s, to_s, idem_s)).fetchone()
-                if row is None:  # 极端: 被删/被释放 → 再试一次
-                    raise  # pragma: no cover
+                if row is None:
+                    raise e  # 原异常 (嵌套闭包捕获, 显式 re-raise)
                 if row["fingerprint"] != fp_s:
                     raise IntentConflict(
                         f"idempotency key conflict: same scope reused with a different request "
@@ -203,7 +227,8 @@ class SqliteIntentStore:
 
     # ── 状态迁移 (全部 CAS + BEGIN IMMEDIATE) ─────────────────────────
     def reserve(self, intent_id: int) -> bool:
-        """RESERVED 状态下 claim「发送方即将行动」。非 RESERVED → False (良性)."""
+        """Pre-dispatch eligibility check (不是 atomic reservation op —
+        reservation 由 create_or_get() 建立)。RESERVED → True, 其它 → False (良性)."""
         def _f(conn):
             row = conn.execute("SELECT status FROM intents WHERE id=?",
                                (intent_id,)).fetchone()
@@ -261,10 +286,40 @@ class SqliteIntentStore:
             return cur.rowcount == 1
         return self._write(_f)
 
+    def cancel_reserved(self, intent_id: int) -> bool:
+        """RESERVED → RECONCILED_FAILED (active=0) — dispatch 前取消, **不带 proof**。
+
+        RESERVED 的定义 = 从未成功 claim dispatch, durable state 自己就能证明
+        「从未通过 SpendShield flow 发出」→ 与 UNKNOWN 的 proof-backed reconcile
+        是两个 trust boundary, 不需要伪造 rail proof (review fix #6)。
+
+        - RESERVED → True
+        - 已是 RECONCILED_FAILED → False (幂等 no-op)
+        - IN_FLIGHT / UNKNOWN / SUCCEEDED → InvalidTransition (dispatch boundary 不可模糊 —
+          静默 False 会让上层误以为「已安全取消」)
+        """
+        def _f(conn):
+            row = conn.execute("SELECT status FROM intents WHERE id=?",
+                               (intent_id,)).fetchone()
+            if row is None:
+                return False
+            if row["status"] == TERMINAL_FAILED:
+                return False
+            if row["status"] != RESERVED:
+                raise InvalidTransition(
+                    f"intent {intent_id} is {row['status']}: cancel_reserved is only valid "
+                    f"from RESERVED (dispatch boundary)")
+            cur = conn.execute(
+                "UPDATE intents SET status=?, active=0, updated_at=? WHERE id=? AND status=?",
+                (TERMINAL_FAILED, _now(), intent_id, RESERVED))
+            return cur.rowcount == 1
+        return self._write(_f)
+
     def reconcile(self, intent_id: int, outcome: str, proof: str) -> bool:
         """IN_FLIGHT/UNKNOWN → SUCCEEDED | RECONCILED_FAILED, 必须带 proof。
 
         RECONCILED_FAILED 是终态: active=0 释放 scope, 同 key 可开新 intent。
+        proof = rail txn id / 可信执行证据 (唯一能推进 UNKNOWN 的入口)。
         """
         if outcome not in (SUCCEEDED, TERMINAL_FAILED):
             raise InvalidTransition(f"reconcile outcome must be SUCCEEDED or "
@@ -292,35 +347,53 @@ class SqliteIntentStore:
         return self._write(_f)
 
     # ── 消费: durable booking (方案 A — 见设计文档 §5) ─────────────────
-    def consume_once(self, intent_id: int) -> bool:
-        """SUCCEEDED 的 intent 入 booking ledger, 恰好一次。
+    @staticmethod
+    def _insert_booking(conn, intent_row) -> bool:
+        """唯一 booking 插入原语 (review fix #9)。调用方必须已持有写事务。
 
-        - INSERT 成功 (rowcount=1) → True (赢家; 这是唯一的 durable booking commit)
-        - booking 已存在 (PK 冲突) → False (replay/restart/race no-op)
-        - 真实 DB 故障 (锁/IO) → raise, 绝不伪装成「已消费」
+        成功 → True (赢家)。IntegrityError 上抛, 由调用方分类 —
+        本函数不吞任何 integrity 故障。
+        """
+        conn.execute(
+            "INSERT INTO bookings (booking_id, intent_id, agent, recipient, amount, "
+            "currency, created_at) VALUES (?,?,?,?,?,?,?)",
+            (secrets.token_hex(16), intent_row["id"], intent_row["agent"],
+             intent_row["recipient"], intent_row["amount"], intent_row["currency"], _now()))
+        return True
+
+    def consume_once(self, intent_id: int) -> bool:
+        """SUCCEEDED 的 intent 入 booking ledger, 恰好一次 (review fix #8/#10)。
+
+        - INSERT 成功 → True (赢家; 这是唯一的 durable booking commit)
+        - IntegrityError 后查 bookings.intent_id: 存在 → False (already consumed);
+          不存在 → raise 原异常 (booking_id 碰撞 / FK / schema 故障不伪装成已消费)
+        - 状态非 SUCCEEDED → False (调用方用 get().status 区分「还没成」与「已消费」)
         """
         def _f(conn):
             row = conn.execute("SELECT * FROM intents WHERE id=?",
                                (intent_id,)).fetchone()
             if row is None or row["status"] != SUCCEEDED:
                 return False
-            ts = _now()
             try:
-                cur = conn.execute(
-                    "INSERT INTO bookings (booking_id, intent_id, agent, recipient, amount, "
-                    "currency, created_at) VALUES (?,?,?,?,?,?,?)",
-                    (secrets.token_hex(16), intent_id, row["agent"], row["recipient"],
-                     row["amount"], row["currency"], ts))
-                return cur.rowcount == 1
+                self._insert_booking(conn, row)
+                return True
             except sqlite3.IntegrityError:
-                return False  # PK(intent_id) 冲突 = 已 book 过, 良性
+                # 分类: 只有 intent_id 已有 booking 才是 already-consumed
+                if conn.execute("SELECT 1 FROM bookings WHERE intent_id=?",
+                                (intent_id,)).fetchone() is not None:
+                    return False
+                raise  # 其它 integrity 故障 → 原样上抛, 绝不伪装
         return self._write(_f)
 
     def replay_succeeded(self):
-        """Startup rebuild (guardrail #4): 给每个 SUCCEEDED intent 补齐 booking 行。
+        """Startup rebuild (guardrail #4, review fix #9): 给每个 SUCCEEDED intent
+        补齐 booking 行 (与 consume_once 共用 _insert_booking, 无嵌套事务)。
 
         幂等: rebuild(rebuild(state)) == rebuild(state)。
         返回 (本次新增 booking 数, 当前 SUCCEEDED intent 总数)。
+        整个遍历 = 一个 IMMEDIATE 事务: crash 在 COMMIT 前 → 全回滚重来;
+        COMMIT 后 → 全落库, 下次全 no-op。不 book UNKNOWN/IN_FLIGHT
+        (它们必须等 reconciler 证明, replay 不替它拍板)。
         """
         def _f(conn):
             rows = conn.execute(
@@ -330,11 +403,7 @@ class SqliteIntentStore:
             for r in rows:
                 if conn.execute("SELECT 1 FROM bookings WHERE intent_id=?",
                                 (r["id"],)).fetchone() is None:
-                    conn.execute(
-                        "INSERT INTO bookings (booking_id, intent_id, agent, recipient, amount, "
-                        "currency, created_at) VALUES (?,?,?,?,?,?,?)",
-                        (secrets.token_hex(16), r["id"], r["agent"], r["recipient"],
-                         r["amount"], r["currency"], _now()))
+                    self._insert_booking(conn, r)  # PK 已查不撞; booking_id 撞 → raise → 整段回滚
                     added += 1
             return added, len(rows)
         return self._write(_f)

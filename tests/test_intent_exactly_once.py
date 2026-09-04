@@ -47,6 +47,7 @@ IntentStore 契约 (Felix 2026-09-04 定, 详见 docs/ 设计讨论):
 """
 import os
 import sys
+import sqlite3
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -279,3 +280,99 @@ def test_replay_succeeded_is_idempotent(tmp_path):
     assert store.get(it["id"])["booked"] is True
     # 重建不产生第二行 (consume_once 依然只有一次 True)
     assert store.consume_once(it["id"]) is False
+
+
+# ─────────────────────────────────────────────────────────────────────
+# review fix #8 / test A: booking_id 碰撞不得伪装成 already-consumed
+# ─────────────────────────────────────────────────────────────────────
+def test_booking_id_collision_not_disguised_as_consumed(tmp_path, monkeypatch):
+    """booking INSERT 的 IntegrityError 若来自 booking_id 碰撞 (intent 未 book)
+    → 必须原样上抛, 不能被当成「已消费」返回 False。"""
+    SqliteIntentStore = _layer()
+    db = str(tmp_path / "intents.db")
+    rail = _FakeRail()
+
+    def _make_succeeded(store, key):
+        fp = _fingerprint("api.example.com", 4.0)
+        it = store.create_or_get(agent="bot", to="api.example.com",
+                                 idem_key=key, amount=4.0, fingerprint=fp)
+        store.mark_in_flight(it["id"])
+        rail.pay(it["provider_key"], 4.0, "api.example.com")
+        assert store.reconcile(it["id"], outcome="SUCCEEDED",
+                               proof=f"rail:committed:{key}") is True
+        return it
+
+    store = SqliteIntentStore(db)
+    x = _make_succeeded(store, "K-A1")
+
+    # 固定 booking_id 生成器 → 第二个 intent 的 INSERT 必撞 booking_id UNIQUE
+    monkeypatch.setattr("spendshield.intent.secrets.token_hex", lambda n: "FIXED_TOKEN")
+    assert store.consume_once(x["id"]) is True      # X 用 FIXED_TOKEN 入账
+
+    y = _make_succeeded(store, "K-A2")
+    # Y 未 book: INSERT 撞 FIXED_TOKEN → IntegrityError 且 intent_id=Y 无 booking → 必须 raise
+    with pytest.raises(sqlite3.IntegrityError):
+        store.consume_once(y["id"])
+    assert store.get(y["id"])["booked"] is False, "故障不能被伪装成已消费"
+
+    monkeypatch.undo()
+    # 解除固定后 Y 可正常入账 (故障不留下半截状态)
+    assert store.consume_once(y["id"]) is True
+    assert store.get(y["id"])["booked"] is True
+
+
+# ─────────────────────────────────────────────────────────────────────
+# review fix #6 / test B: cancel_reserved()
+# ─────────────────────────────────────────────────────────────────────
+def test_cancel_reserved_releases_scope(tmp_path):
+    """RESERVED → cancel → RECONCILED_FAILED (active=0); 同 key 可开新 intent。"""
+    SqliteIntentStore = _layer()
+    store = SqliteIntentStore(str(tmp_path / "intents.db"))
+    fp = _fingerprint("api.example.com", 6.0)
+    it = store.create_or_get(agent="bot", to="api.example.com",
+                             idem_key="K-B1", amount=6.0, fingerprint=fp)
+    assert it["status"] == "RESERVED"
+
+    assert store.cancel_reserved(it["id"]) is True
+    assert store.get(it["id"])["status"] == "RECONCILED_FAILED"
+    assert store.get(it["id"])["booked"] is False
+
+    # scope 已释放 → 同 key 开新 intent
+    again = store.create_or_get(agent="bot", to="api.example.com",
+                                idem_key="K-B1", amount=6.0, fingerprint=fp)
+    assert again["id"] != it["id"]
+    assert again["provider_key"] != it["provider_key"]
+    assert again["status"] == "RESERVED"
+
+
+def test_cancel_reserved_idempotent_noop(tmp_path):
+    SqliteIntentStore = _layer()
+    store = SqliteIntentStore(str(tmp_path / "intents.db"))
+    it = store.create_or_get(agent="bot", to="api.example.com", idem_key="K-B2",
+                             amount=1.0, fingerprint=_fingerprint("api.example.com", 1.0))
+    assert store.cancel_reserved(it["id"]) is True
+    assert store.cancel_reserved(it["id"]) is False, "已是 RECONCILED_FAILED → 幂等 no-op"
+
+
+def test_cancel_reserved_invalid_after_dispatch(tmp_path):
+    """IN_FLIGHT 后 cancel → InvalidTransition (dispatch boundary 不可模糊)。"""
+    SqliteIntentStore = _layer()
+    store = SqliteIntentStore(str(tmp_path / "intents.db"))
+    it = store.create_or_get(agent="bot", to="api.example.com", idem_key="K-B3",
+                             amount=1.0, fingerprint=_fingerprint("api.example.com", 1.0))
+    store.mark_in_flight(it["id"])
+    with pytest.raises(Exception):
+        store.cancel_reserved(it["id"])
+
+
+# ─────────────────────────────────────────────────────────────────────
+# review fix #3 / test C: amount structural validation
+# ─────────────────────────────────────────────────────────────────────
+@pytest.mark.parametrize("bad", [True, float("nan"), float("inf"), float("-inf")])
+def test_amount_structural_validation_rejects(tmp_path, bad):
+    """bool / NaN / ±Inf 不能进 durable ledger。"""
+    SqliteIntentStore = _layer()
+    store = SqliteIntentStore(str(tmp_path / "intents.db"))
+    with pytest.raises(ValueError):
+        store.create_or_get(agent="bot", to="api.example.com", idem_key="K-C1",
+                            amount=bad, fingerprint=_fingerprint("api.example.com", 1.0))
