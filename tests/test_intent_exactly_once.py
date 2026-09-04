@@ -19,6 +19,7 @@ issue #2 (flowpatch-reliability) 指出 + 我方公开确认的 invariant 缺口
     acceptance 3 → test_same_key_same_resource_different_amount_conflict
     cv-scvd 修正 → test_same_key_different_resource_independent_intent
     acceptance 4 → test_two_processes_race_same_key_single_intent
+    guardrail #4 → test_replay_succeeded_is_idempotent (regression: rebuild(rebuild) == rebuild)
 
 IntentStore 契约 (Felix 2026-09-04 定, 详见 docs/ 设计讨论):
     store = SqliteIntentStore(path)
@@ -248,3 +249,33 @@ def test_two_processes_race_same_key_single_intent(tmp_path):
 
     rail.pay(ia["provider_key"], 8.0, "api.example.com")
     assert len(rail.executions) == 1, "两进程同 key → 外部执行只能一次"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# guardrail #4 (Felix): startup rebuild 可重复 —— rebuild(rebuild(state)) == rebuild(state)
+# ─────────────────────────────────────────────────────────────────────
+def test_replay_succeeded_is_idempotent(tmp_path):
+    """重启重放必须幂等: 跑 N 次结果一致; 每个 SUCCEEDED intent 的 booking 恰好一行。"""
+    SqliteIntentStore = _layer()
+    db = str(tmp_path / "intents.db")
+    rail = _FakeRail()
+    fp = _fingerprint("api.example.com", 3.0)
+
+    store = SqliteIntentStore(db)
+    it = store.create_or_get(agent="bot", to="api.example.com",
+                             idem_key="K-006", amount=3.0, fingerprint=fp)
+    store.mark_in_flight(it["id"])
+    rail.pay(it["provider_key"], 3.0, "api.example.com")
+    assert store.reconcile(it["id"], outcome="SUCCEEDED",
+                           proof="rail:committed:K-006") is True
+
+    # 第一次重建: 补上 booking
+    new1, total1 = store.replay_succeeded()
+    assert (new1, total1) == (1, 1), "首次重建应补 1 笔 booking"
+    # 第二次、第三次重建: 全部 no-op, 结果不变 (rebuild(rebuild(state)) == rebuild(state))
+    assert store.replay_succeeded() == (0, 1)
+    assert store.replay_succeeded() == (0, 1)
+    # DB 层 booking 恰好一行
+    assert store.get(it["id"])["booked"] is True
+    # 重建不产生第二行 (consume_once 依然只有一次 True)
+    assert store.consume_once(it["id"]) is False
