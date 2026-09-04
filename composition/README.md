@@ -1,15 +1,18 @@
 # VA × SpendShield E2E composition
 
-**Status (2026-09-03, honest version):**
-Core pre-dispatch handler-gating behavior has been **independently reproduced** by the
-Verb Authority maintainer from clean checkouts (SpendShield `83f2a415…`, VA `5ef6e110…`).
-The evaluator then identified three composition-evidence gaps (artifact integrity,
-canonical source-binding, incomplete grant lifecycle). All three were corrected and
-re-pinned at `0acb2e5`; **full VA → SpendShield composition evidence is not yet frozen —
-it now includes the evaluator's final load-bearing requirement (source-bound negative probes). Awaiting clean-checkout re-confirmation before recording as frozen.**
+**Status (2026-09-04, recorded):**
+**Assisted external composition evidence — narrow GO from the Verb Authority maintainer.**
+He independently reproduced the corrected chain from clean checkouts (SpendShield
+`31e584b`, VA `5ef6e110…`): 7/7 cases, exit 0, stdout matched byte for byte, and
+ran the merchant source variants directly against the pinned verifier. This commit
+adds those merchant variants to the committed harness as probes D/E/F.
 
-This is not a self-test claim. It is an external adversarial review cycle in progress:
-independent reproduction → evidence-gap findings → correction → pending re-confirmation.
+Claim boundary (maintainer's own framing, agreed): this is a purpose-built,
+co-designed harness — **not** self-service adoption, independent certification,
+production payment execution, or proof of truthful origin. It demonstrates that
+host-owned `trusted_args` can stop protected-value changes before the SpendShield
+handler, while an allowed call reaches a real SpendShield ALLOW and signed-grant
+verification.
 
 ## Files
 - `va_e2e_authorize_payment.py` — the 7-case composition test (exit != 0 on any failure)
@@ -21,7 +24,14 @@ independent reproduction → evidence-gap findings → correction → pending re
 PYTHONPATH=<verb-authority source> python3 composition/va_e2e_authorize_payment.py
 ```
 
+Built-in source checks: **two negative probes (A: agent omitted → SOURCE_MISSING:agent;
+B: amount replaced → SOURCE_MISMATCH:amount) + one positive control (C: complete map →
+AUTHORIZED)**, plus merchant supplemental probes D (merchant omitted at issuance →
+SOURCE_MISSING:merchant), E (merchant replaced → SOURCE_MISMATCH:merchant), F (verifier
+omits merchant → SOURCE_MISSING:merchant). `va_e2e_results.txt` is the frozen stdout.
+
 ## Pins
-- Host: felixpg13-glitch/spendshield @ `0acb2e5`
+- Host: felixpg13-glitch/spendshield — composition chain `0acb2e5` → probes `31e584b`
+  → merchant probes (this commit); external clean-checkout reproduction pinned `31e584b`
 - Verb Authority: main @ `5ef6e1109120` (2026-09-03)
-- External review thread: yairsabag/verb-authority issue #7
+- External review thread: yairsabag/verb-authority issue #7 (GO) · write-up: issue #36

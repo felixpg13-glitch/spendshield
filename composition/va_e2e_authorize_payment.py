@@ -167,6 +167,40 @@ def probe_source_binding():
     good = v and why == "AUTHORIZED"
     ok_all &= good
     print(f"[{'PASS' if good else 'FAIL'}] probe C: complete correct source map -> {why}")
+    # (d) issuance omits merchant source -> SOURCE_MISSING:merchant
+    g = issuer.issue(agent="mcd_bot", amount=25, currency="USD", merchant="mcdonalds.com",
+                     policy_version="2.1.0",
+                     sources={"amount": "trusted_args", "agent": "trusted_args"})
+    v, why = executor.verify(g, agent="mcd_bot", amount=25, currency="USD",
+                             merchant="mcdonalds.com", policy_version="2.1.0",
+                             sources={"merchant": "trusted_args", "amount": "trusted_args",
+                                      "agent": "trusted_args"})
+    good = (not v) and why == "SOURCE_MISSING:merchant"
+    ok_all &= good
+    print(f"[{'PASS' if good else 'FAIL'}] probe D: merchant source omitted at issuance -> {why}")
+    # (e) issuance replaces merchant source -> SOURCE_MISMATCH:merchant
+    g = issuer.issue(agent="mcd_bot", amount=25, currency="USD", merchant="mcdonalds.com",
+                     policy_version="2.1.0",
+                     sources={"merchant": "agent_controlled", "amount": "trusted_args",
+                              "agent": "trusted_args"})
+    v, why = executor.verify(g, agent="mcd_bot", amount=25, currency="USD",
+                             merchant="mcdonalds.com", policy_version="2.1.0",
+                             sources={"merchant": "trusted_args", "amount": "trusted_args",
+                                      "agent": "trusted_args"})
+    good = (not v) and why == "SOURCE_MISMATCH:merchant"
+    ok_all &= good
+    print(f"[{'PASS' if good else 'FAIL'}] probe E: merchant source replaced -> {why}")
+    # (f) verifier omits merchant label required by the grant -> SOURCE_MISSING:merchant
+    g = issuer.issue(agent="mcd_bot", amount=25, currency="USD", merchant="mcdonalds.com",
+                     policy_version="2.1.0",
+                     sources={"merchant": "trusted_args", "amount": "trusted_args",
+                              "agent": "trusted_args"})
+    v, why = executor.verify(g, agent="mcd_bot", amount=25, currency="USD",
+                             merchant="mcdonalds.com", policy_version="2.1.0",
+                             sources={"amount": "trusted_args", "agent": "trusted_args"})
+    good = (not v) and why == "SOURCE_MISSING:merchant"
+    ok_all &= good
+    print(f"[{'PASS' if good else 'FAIL'}] probe F: verifier omits merchant source -> {why}")
     return ok_all
 
 

@@ -5,6 +5,9 @@ source-bound negative probes (grant issuance/verification/consumption):
 [PASS] probe A: agent source omitted at issuance -> SOURCE_MISSING:agent
 [PASS] probe B: amount source replaced -> SOURCE_MISMATCH:amount
 [PASS] probe C: complete correct source map -> AUTHORIZED
+[PASS] probe D: merchant source omitted at issuance -> SOURCE_MISSING:merchant
+[PASS] probe E: merchant source replaced -> SOURCE_MISMATCH:merchant
+[PASS] probe F: verifier omits merchant source -> SOURCE_MISSING:merchant
 
 [PASS] 1. trusted recipient+amount fixed, model writes purpose       -> 1
         invoked=1 (expect 1) | allow=True | 
