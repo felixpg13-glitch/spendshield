@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Payment Security Checklist — 20 questions before an agent can spend</title>
+<meta name="description" content="If your AI agent can spend money, these are the failure modes you need to handle. A vendor-neutral security checklist for agent payments, with SpendShield as reference implementation.">
+<link rel="canonical" href="https://felixpg13-glitch.github.io/spendshield/checklist.html">
+<style>
+  body { font-family: -apple-system, "SF Pro Text", Segoe UI, Roboto, sans-serif;
+         max-width: 720px; margin: 48px auto 96px; padding: 0 20px; color: #1a1a1a;
+         background: #fff; line-height: 1.65; }
+  h1 { font-size: 1.8rem; letter-spacing: -0.02em; margin-bottom: .3rem; }
+  .sub { color: #555; margin-top: 0; }
+  h2 { font-size: 1.1rem; margin-top: 1.8rem; border-top: 1px solid #eee; padding-top: 1.2rem; }
+  .q { margin: .8rem 0; }
+  .q b { display: block; }
+  .q p { margin: .15rem 0 0; color: #444; font-size: .93rem; }
+  code { font-family: ui-monospace, SF Mono, Menlo, Consolas, monospace;
+         background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+  a { color: #1d4ed8; text-decoration: none; } a:hover { text-decoration: underline; }
+  .muted { color: #6b7280; font-size: .92rem; }
+</style>
+</head>
+<body>
+
+<h1>Agent Payment Security Checklist</h1>
+<p class="sub">If your AI agent can spend money, these are the failure modes you need to handle. Vendor-neutral — the reference implementation at the bottom is one way to satisfy them.</p>
+
+<h2>Identity &amp; scope</h2>
+<div class="q"><b>1. Can you tell exactly which agent is spending?</b><p>Every payment carries a verifiable agent identity. Anonymous or forged identity must not reach a budget.</p></div>
+<div class="q"><b>2. Are budgets scoped per identity?</b><p>A shared pool means one agent's spend starves — or blames — another. Per-agent budgets + a global ceiling is the sane minimum.</p></div>
+<div class="q"><b>3. What happens to an unknown agent?</b><p>If the default is "fall back to global policy", fine — as long as it's an explicit decision. Accidental default-allow is how budgets get bypassed.</p></div>
+
+<h2>Authorization</h2>
+<div class="q"><b>4. Is the decision deterministic, before money moves?</b><p>Same request + same policy = same decision, every time, in code — not "ask the model". The agent must not be able to argue its way past a rule.</p></div>
+<div class="q"><b>5. Is there a per-transaction cap?</b><p>A hard ceiling on any single payment, independent of budgets.</p></div>
+<div class="q"><b>6. Are there hard daily / monthly ceilings?</b><p>And are they cumulative — does splitting one $200 spend into five $40 calls still get caught?</p></div>
+<div class="q"><b>7. Merchant allow / block lists?</b><p>Block known-bad recipients outright; trust list can skip approvals. Exact-domain matching, no prefix games.</p></div>
+<div class="q"><b>8. Are new recipients and large amounts gated on a human?</b><p>This is the pragmatic prompt-injection defense: an agent that read "refund $500 to scam-vip.com" hits "new recipient / over approval line → human, or deny".</p></div>
+
+<h2>Execution enforcement</h2>
+<div class="q"><b>9. Can the agent ignore the check?</b><p>A policy check is an opinion. If the execution path doesn't <em>require</em> the authorization (signed, single-use grant), the gate is decorative. No receipt → no execution.</p></div>
+<div class="q"><b>10. Does the agent hold payment credentials?</b><p>If it has the card and a payment tool, there is a second path around your gate. The agent should hold no credentials.</p></div>
+<div class="q"><b>11. Replay protection?</b><p>Can an old authorized request be replayed after success? Grants and intents must be single-use.</p></div>
+
+<h2>Durability (the crash cases)</h2>
+<div class="q"><b>12. What happens when the process dies between "allowed" and "paid"?</b><p>There must be a durable execution-intent record (reserved → in-flight → succeeded/unknown), not just an in-memory decision. After restart, the system must know exactly what happened.</p></div>
+<div class="q"><b>13. Retry after timeout — double spend?</b><p>The rail timed out but actually settled. Retry pays twice. Outcomes must be reconciled against the durable record, not assumed from the last HTTP response.</p></div>
+<div class="q"><b>14. Concurrent requests vs. remaining budget?</b><p>Two parallel requests must not both pass a $50 remainder. Reservation and consumption must be atomic (one transaction), not read-then-write.</p></div>
+<div class="q"><b>15. Is "unknown" handled, not papered over?</b><p>An unreachable outcome must stay budget-occupied until proven settled-or-not — releasing it early is how double spends happen.</p></div>
+
+<h2>Audit &amp; operations</h2>
+<div class="q"><b>16. Tamper-evident audit?</b><p>Every decision logged with who/what/why. Chain the entries (hash-linking) so editing history is detectable. This is your evidence if anything is disputed.</p></div>
+<div class="q"><b>17. Approval channel failure = what?</b><p>Unconfigured channel, dead webhook, human asleep — if the fallback is "allow", the gate is decorative. No channel available = deny.</p></div>
+<div class="q"><b>18. Can policy change be reviewed and rolled back?</b><p>Policy-as-code: versioned, diffable, deployable — not a magic config a model or admin edits inline.</p></div>
+<div class="q"><b>19. Dry-run before real mode?</b><p>You should be able to run the whole gate against real requests with zero money moving. Nobody should wire real payments on the first deploy.</p></div>
+<div class="q"><b>20. Do you attack-test your own gate?</b><p>Adversarial suite (injection, splitting, replay, races, tampering) + every found hole becomes a permanent regression test. Release blocked on any escape.</p></div>
+
+<p class="muted" style="margin-top:2.4rem">
+Reference implementation (MIT): <a href="https://github.com/felixpg13-glitch/spendshield">SpendShield</a> satisfies 1–20 with a YAML policy engine, signed single-use grants, durable execution intent and a hash-chained audit log. <a href="https://felixpg13-glitch.github.io/spendshield/connect.html">Connect it in 2 minutes →</a> · <a href="https://felixpg13-glitch.github.io/spendshield/failure-map.html">See the failure map</a>
+</p>
+
+</body>
+</html>

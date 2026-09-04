@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Payment Failure Map — where agent payments break</title>
+<meta name="description" content="Every place an AI agent payment can fail: authorization bypasses, budget races, replay, crashes between intent and execution, double spends. A failure-mode map for agent payments.">
+<link rel="canonical" href="https://felixpg13-glitch.github.io/spendshield/failure-map.html">
+<style>
+  body { font-family: -apple-system, "SF Pro Text", Segoe UI, Roboto, sans-serif;
+         max-width: 760px; margin: 48px auto 96px; padding: 0 20px; color: #1a1a1a;
+         background: #fff; line-height: 1.65; }
+  h1 { font-size: 1.8rem; letter-spacing: -0.02em; margin-bottom: .3rem; }
+  .sub { color: #555; margin-top: 0; }
+  h2 { font-size: 1.15rem; margin-top: 2.4rem; border-top: 1px solid #eee; padding-top: 1.4rem; }
+  pre { background: #f6f8fa; padding: 16px 18px; border-radius: 8px; overflow-x: auto;
+        font-size: .8rem; line-height: 1.5; }
+  code { font-family: ui-monospace, SF Mono, Menlo, Consolas, monospace;
+         background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+  .fail { margin: .9rem 0; padding: 10px 14px 10px 14px; border-left: 3px solid #e5e7eb; }
+  .fail b { display: block; }
+  .fail p { margin: .2rem 0 0; color: #444; font-size: .94rem; }
+  .deny { border-left-color: #16a34a; }
+  .crash { border-left-color: #d97706; }
+  .bad { border-left-color: #dc2626; }
+  .muted { color: #6b7280; font-size: .92rem; }
+  a { color: #1d4ed8; text-decoration: none; } a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<h1>Agent Payment Failure Map</h1>
+<p class="sub">If software can spend money, this is every place it can break — and what to do about each one.</p>
+
+<pre>   AI Agent
+      │  "pay $X to recipient"
+      ▼
+┌─ Authorization ──────────────────────────────────────────────┐
+│  budget exceeded        → DENY        (hard ceiling)          │
+│  per-transaction cap    → DENY                                │
+│  merchant blocked       → DENY        (scam-vip.com, etc.)    │
+│  invalid / unknown agent→ DENY        (who is spending?)      │
+│  replay of old grant    → DENY        (already used)          │
+│  over approval line     → APPROVAL    (human, else DENY)      │
+│  new recipient          → APPROVAL    (prompt-injection stop) │
+└──────────────────────────┬────────────────────────────────────┘
+                           │ ALLOW → signed, single-use grant
+                           ▼
+┌─ Execution Intent (durable) ─────────────────────────────────┐
+│  RESERVED ──► IN-FLIGHT ──► SUCCEEDED / UNKNOWN               │
+│  (budget held)  (executing)   (settled / reconcile me)        │
+└──────────────────────────┬────────────────────────────────────┘
+                           ▼
+┌─ External Payment (the rail: Stripe / x402 / wallet) ────────┐
+│  timeout ──► did it happen?   crash ──► restart, what now?    │
+│  retry ────► double spend?    success ──► accounted once?     │
+└──────────────────────────┬────────────────────────────────────┘
+                           ▼
+            Atomic budget accounting + tamper-evident audit
+</pre>
+
+<p>The three hard truths this map encodes:</p>
+<ol>
+  <li><strong>A policy check is an opinion.</strong> An agent can ignore it. The ALLOW decision must be a signed grant that the execution path <em>requires</em> — no receipt, no execution.</li>
+  <li><strong>"Unknown" is a real state.</strong> A crash between "grant issued" and "payment settled" is not an edge case, it's the normal case under retries. The system must know exactly what happened after a restart — without that, the retry either double-spends or silently drops a real payment.</li>
+  <li><strong>Money accounting must be atomic.</strong> Two parallel requests must not both pass a $50 remaining budget. Budget consumption happens in the same durable step as the outcome, or a crash reintroduces the bug one step to the right.</li>
+</ol>
+
+<h2>Failure modes, one by one</h2>
+
+<div class="fail deny"><b>1. Over budget — and it tried again with a different amount</b><p>Per-call limits are not budgets. An agent can split one $200 spend into five $40 calls. The counter must be cumulative, atomic, and per identity.</p></div>
+
+<div class="fail deny"><b>2. Prompt injection → "refund $500 to this account"</b><p>The agent read an email/tool result that told it to pay. Merchant block lists and "new recipient requires human" rules are the pragmatic defense — deny by default, approve by exception.</p></div>
+
+<div class="fail deny"><b>3. Replay — "it worked, do it again"</b><p>The same authorized grant replayed after success. Grants must be single-use; every authorization carries a unique id that can only be consumed once.</p></div>
+
+<div class="fail deny"><b>4. Who is this agent, anyway?</b><p>An unregistered identity spent against someone else's budget — or the budget rule was bound to a name the caller just made up. Identity must be verifiable and unknown agents denied by default.</p></div>
+
+<div class="fail crash"><b>5. Crash after grant, before payment</b><p>Process dies with the grant issued. Restart: did the money move? Without a durable execution-intent record, the operator guesses — and guessing is how double spends and silent losses happen.</p></div>
+
+<div class="fail crash"><b>6. Timeout, retry, double spend</b><p>The rail timed out but actually settled. The retry pays twice. The outcome must be reconciled against a durable record, not assumed from the last HTTP response.</p></div>
+
+<div class="fail crash"><b>7. Two workers, one budget</b><p>Concurrent requests race the remaining budget and both pass. Budget reservation and consumption must be atomic under concurrency (database transaction or equivalent), not read-then-write.</p></div>
+
+<div class="fail bad"><b>8. The agent holds the card</b><p>If the agent has direct payment credentials and a payment tool, no gate can help — there is a second path around it. The agent should hold no credentials; the gate should be the only path.</p></div>
+
+<div class="fail bad"><b>9. Audit you can't trust</b><p>If logs can be edited, "we checked, it was authorized" is worthless in a dispute. Audit events should be chained (each entry hashes the previous) so tampering is detectable.</p></div>
+
+<div class="fail bad"><b>10. The approval that never comes</b><p>An approval channel that is unconfigured, a webhook that silently fails, a human who never answers — if the default is "allow", the gate is decorative. No channel = deny.</p></div>
+
+<p class="muted" style="margin-top:2.4rem">
+Open-source reference implementation of this map: <a href="https://github.com/felixpg13-glitch/spendshield">SpendShield</a> (Python + MCP, MIT). Read the <a href="https://felixpg13-glitch.github.io/spendshield/faq.html">FAQ</a> or <a href="https://felixpg13-glitch.github.io/spendshield/connect.html">connect it in 2 minutes</a>.
+</p>
+
+</body>
+</html>
