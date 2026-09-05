@@ -1,27 +1,22 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<title>SpendShield — Authorization layer between AI agents and money</title>
-<meta name="description" content="Open-source policy & authorization layer for AI agent spending: ALLOW/APPROVAL/DENY decisions with reason codes, policy lifecycle, tamper-evident audit. Python + MCP server. pip install spendshield.">
-<meta name="keywords" content="AI agent, payment security, MCP server, guardrails, LLM security, python, spend limit, agent wallet">
-<meta name="author" content="SpendShield">
+<title>SpendShield — Spending controls for AI agents</title>
+<meta name="description" content="Open-source authorization and spending policy layer for AI agents: budgets, transaction limits, approvals and audit enforced before money moves. Python + MCP. Let agents act, don't let them overspend.">
 <link rel="canonical" href="https://felixpg13-glitch.github.io/spendshield/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="SpendShield — Authorization layer between AI agents and money">
-<meta property="og:description" content="Before your AI spends real money, it passes through SpendShield. ALLOW / APPROVAL / DENY with explainable reason codes and tamper-evident audit. Python + MCP.">
+<meta property="og:title" content="SpendShield — Spending controls for AI agents">
+<meta property="og:description" content="Let agents act. Don't let them overspend. Open-source authorization & spending policy layer for AI agents, enforced before money moves.">
 <meta property="og:url" content="https://felixpg13-glitch.github.io/spendshield/">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="SpendShield — Authorization layer between AI agents and money">
-<meta name="twitter:description" content="Policy & authorization layer for AI agent spending. ALLOW/APPROVAL/DENY + reason codes + audit chain. Python + MCP.">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "SpendShield",
-  "description": "AI payment guardrail for Python & MCP: spend-capped agent identity (KYA), dry-run/budget/approval gates, prompt-injection defense, encrypted secret vault.",
+  "description": "Authorization and spending policy layer for AI agents: budgets, transaction limits, human approvals and audit enforced before payment executes. Python + MCP server, MIT.",
   "url": "https://felixpg13-glitch.github.io/spendshield/",
   "applicationCategory": "SecurityApplication",
   "operatingSystem": "Cross-platform",
@@ -31,108 +26,73 @@
 }
 </script>
 <style>
-:root{--bg:#fafafa;--ink:#111;--muted:#6b7280;--line:#e5e7eb;--accent:#7c5cf0;--code:#f3f4f6}
+:root{--bg:#fff;--ink:#111;--muted:#555;--line:#e5e7eb;--accent:#7c3aed;--code:#f6f8fa}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:-apple-system,'SF Pro Text','PingFang SC','Helvetica Neue',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
-.wrap{max-width:1100px;margin:0 auto;padding:0 28px}
-nav{display:flex;align-items:center;justify-content:space-between;padding:28px 0;border-bottom:1px solid var(--line)}
-.logo{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:600;letter-spacing:-.2px}
-.logo svg{width:22px;height:22px}
-nav .links{display:flex;align-items:center}
-nav .links a{color:var(--muted);text-decoration:none;font-size:13px;margin-left:26px;transition:color .15s}
+body{font-family:-apple-system,'SF Pro Text','Segoe UI',Roboto,'PingFang SC','Helvetica Neue',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1000px;margin:0 auto;padding:0 26px}
+nav{display:flex;align-items:center;justify-content:space-between;padding:22px 0;border-bottom:1px solid var(--line)}
+.logo{display:flex;align-items:center;gap:9px;font-size:15px;font-weight:600}
+.logo svg{width:20px;height:20px}
+nav .links a{color:var(--muted);text-decoration:none;font-size:13px;margin-left:22px;transition:color .15s}
 nav .links a:hover{color:var(--ink)}
-.lang-btn{border:1px solid var(--line);background:none;color:var(--ink);border-radius:100px;padding:5px 14px;font-size:12px;cursor:pointer;margin-left:14px;font-family:inherit}
-.lang-btn:hover{border-color:#d1d5db}
-.hero{padding:100px 0 70px;max-width:760px}
-.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:100px;padding:4px 14px;margin-bottom:32px}
-.badge .dot{width:6px;height:6px;border-radius:50%;background:var(--accent)}
-.hero h1{font-size:48px;font-weight:600;letter-spacing:-1.5px;line-height:1.15;margin-bottom:24px}
-.hero p{font-size:17px;color:var(--muted);max-width:600px;margin-bottom:40px;line-height:1.7}
-.cta{display:flex;gap:12px;align-items:center}
-.btn{padding:11px 24px;border-radius:8px;font-size:14px;font-weight:500;text-decoration:none;transition:opacity .15s}
-.btn.black{background:var(--ink);color:#fff}
-.btn.black:hover{opacity:.85}
+section{padding:64px 0;border-bottom:1px solid var(--line)}
+.hero{padding:84px 0 56px}
+.hero h1{font-size:44px;letter-spacing:-1.5px;line-height:1.12;margin-bottom:14px;max-width:820px}
+.hero h1 .thin{font-weight:300;color:var(--muted)}
+.hero p{font-size:17px;color:var(--muted);max-width:640px;margin-bottom:28px}
+.cta{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.btn{padding:11px 22px;border-radius:9px;font-size:14px;font-weight:600;text-decoration:none;transition:opacity .15s}
+.btn.dark{background:var(--ink);color:#fff}
+.btn.dark:hover{opacity:.85}
 .btn.ghost{color:var(--ink);border:1px solid var(--line)}
-.btn.ghost:hover{border-color:#d1d5db}
-.btn .arrow{opacity:.6}
-.statement{padding:70px 0;border-top:1px solid var(--line)}
-.label{font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:20px}
-.statement h2{font-size:32px;font-weight:500;letter-spacing:-.8px;line-height:1.35;max-width:720px}
-.statement h2 em{font-style:normal;color:var(--accent);font-weight:600}
-.pillars{padding:60px 0;border-top:1px solid var(--line)}
-.pillars .label{margin-bottom:34px}
-.flow{display:flex;align-items:stretch;gap:0}
-.flow .step{flex:1;padding:0 18px;position:relative}
-.flow .step:not(:last-child)::after{content:'';position:absolute;top:22px;right:-2px;width:4px;height:1px;background:var(--line)}
-.flow .step .n{width:44px;height:44px;border:1px solid var(--line);border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:Menlo,monospace;font-size:14px;margin-bottom:16px;background:#fff}
-.flow .step h3{font-size:14px;font-weight:600;margin-bottom:6px}
-.flow .step p{font-size:12px;color:var(--muted);line-height:1.6}
-.gates{padding:60px 0;border-top:1px solid var(--line)}
-.gates .label{margin-bottom:34px}
-.features{padding:20px 0 40px;border-top:1px solid var(--line)}
-.f-row{display:flex;align-items:baseline;gap:24px;padding:22px 0;border-bottom:1px solid var(--line)}
-.f-row .name{font-size:15px;font-weight:600;min-width:180px}
-.f-row .desc{font-size:14px;color:var(--muted);flex:1}
-.f-row .tag{font-size:11px;color:var(--accent);font-family:Menlo,monospace;white-space:nowrap}
-.code-wrap{padding:60px 0;border-top:1px solid var(--line)}
-.code-wrap .label{margin-bottom:24px}
-.code{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:24px 28px;font-family:Menlo,Consolas,monospace;font-size:13px;line-height:1.9;overflow-x:auto}
-.code .cmt{color:#9ca3af}
-.code .kw{color:var(--accent)}
-/* ===== About SEO 区块 ===== */
-.about-seo { border-top:1px solid var(--line); padding:64px 0; }
-.about-grid { display:flex; gap:56px; align-items:flex-start; }
-.about-left { flex:1.5; }
-.about-left .label { margin-bottom:16px; }
-.about-left p { font-size:13px; color:var(--muted); line-height:2; max-width:560px; }
-.about-left p a { color:var(--accent); text-decoration:none; border-bottom:1px solid transparent; }
-.about-left p a:hover { border-bottom-color:var(--accent); }
-.about-right { flex:1; display:flex; flex-wrap:wrap; gap:8px; padding-top:30px; }
-.about-right .chip {
-  font-family:Menlo,Consolas,monospace; font-size:11px; color:var(--accent);
-  border:1px solid var(--line); border-radius:100px; padding:6px 14px; background:#fff;
-}
-.about-right .chip.ghost { color:var(--muted); }
-.final{padding:100px 0;text-align:center}
-.final h2{font-size:28px;font-weight:500;letter-spacing:-.6px;margin-bottom:12px}
-.final p{color:var(--muted);font-size:14px;margin-bottom:30px}
-footer{padding:30px 0;border-top:1px solid var(--line);display:flex;justify-content:space-between;color:var(--muted);font-size:12px}
-footer a{color:var(--muted);text-decoration:none;margin-left:20px}
+.btn.ghost:hover{border-color:#bbb}
+.results{margin-top:44px;border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:680px}
+.results .row{display:flex;align-items:center;gap:14px;padding:11px 18px;border-bottom:1px solid var(--line);font-size:14px;font-family:ui-monospace,SF Mono,Menlo,monospace}
+.results .row:last-child{border-bottom:none}
+.results .row .req{flex:1;color:#333}
+.results .row .d{font-weight:700;width:64px}
+.d-allow{color:#15803d}.d-deny{color:#b91c1c}
+.results .head{font-family:inherit;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);background:#fafafa}
+.label{font-size:12px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:22px}
+h2{font-size:31px;font-weight:600;letter-spacing:-.7px;line-height:1.25;margin-bottom:18px;max-width:760px}
+h2 em{font-style:normal;color:var(--accent);font-weight:600}
+.why p{color:var(--muted);font-size:16px;max-width:640px}
+.qs{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:34px}
+@media(max-width:760px){.qs{grid-template-columns:1fr}}
+.q{border:1px solid var(--line);border-radius:12px;padding:20px}
+.q h3{font-size:15px;font-weight:600;margin-bottom:8px}
+.q p{font-size:13.5px;color:var(--muted);line-height:1.6}
+.stmt{margin-top:32px;font-size:17px;font-weight:600;color:var(--ink)}
+.example{margin:26px 0 0;border:1px solid var(--line);border-radius:12px;overflow:hidden;max-width:640px}
+.example .line{display:flex;gap:12px;padding:10px 18px;border-bottom:1px solid var(--line);font-family:ui-monospace,Menlo,monospace;font-size:14px;align-items:center}
+.example .line:last-child{border-bottom:none}
+.example .ok{color:#15803d}.example .no{color:#b91c1c}
+.example .line span:first-child{width:110px;color:#333}
+.example .line .why{color:var(--muted);font-family:inherit;font-size:13px}
+.muted{color:var(--muted)}
+.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:34px}
+@media(max-width:760px){.modes{grid-template-columns:1fr}}
+.mode{border:1px solid var(--line);border-radius:12px;padding:22px}
+.mode h3{font-size:15px;margin-bottom:6px}
+.mode p{font-size:13.5px;color:var(--muted)}
+.mode code{display:block;background:var(--code);border-radius:8px;padding:9px 12px;margin-top:12px;font-family:ui-monospace,Menlo,monospace;font-size:12.5px;overflow-x:auto}
+.mode a{font-size:13.5px;color:var(--accent);text-decoration:none;display:inline-block;margin-top:10px}
+.mode a:hover{text-decoration:underline}
+table{border-collapse:collapse;width:100%;font-size:14px;margin-top:26px}
+td,th{border:1px solid var(--line);padding:9px 14px;text-align:left;font-family:ui-monospace,Menlo,monospace;font-size:13.5px}
+th{background:#fafafa;font-family:inherit;font-size:12px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
+.diagram{font-family:ui-monospace,Menlo,monospace;font-size:13.5px;line-height:1.7;background:var(--code);border:1px solid var(--line);border-radius:12px;padding:22px 26px;overflow-x:auto;margin-top:26px;white-space:pre}
+.pos{margin-top:30px;font-size:17px;font-weight:600}
+.proofs{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+@media(max-width:760px){.proofs{grid-template-columns:1fr}}
+.proof{border:1px solid var(--line);border-radius:12px;padding:18px}
+.proof h3{font-size:14px;margin-bottom:4px}
+.proof p{font-size:12.5px;color:var(--muted);line-height:1.55}
+.proof a{color:var(--accent);text-decoration:none;font-size:12.5px}
+footer{padding:28px 0;color:var(--muted);font-size:12.5px;display:flex;flex-wrap:wrap;gap:6px 0;justify-content:space-between}
+footer a{color:var(--muted);text-decoration:none;margin-left:18px}
 footer a:hover{color:var(--ink)}
-@media(max-width:820px){
-  nav{padding:20px 0}
-  nav .links a{font-size:12px;margin-left:16px}
-  .lang-btn{padding:5px 12px;font-size:11px;margin-left:10px}
-  .hero{padding:72px 0 56px}
-  .hero h1{font-size:33px;letter-spacing:-.6px;margin-bottom:20px;line-height:1.25}
-  .hero p{font-size:15px;line-height:1.85;margin-bottom:30px}
-  .badge{font-size:11px;padding:4px 13px;margin-bottom:28px}
-  .statement{padding:52px 0}
-  .statement h2{font-size:22px;line-height:1.65;letter-spacing:-.3px}
-  .pillars,.gates{padding:48px 0}
-  .flow{flex-direction:column;gap:0}
-  .flow .step{padding:22px 0;border-bottom:1px solid var(--line)}
-  .flow .step:last-child{border-bottom:none}
-  .flow .step:not(:last-child)::after{display:none}
-  .flow .step .n{width:38px;height:38px;font-size:13px;margin-bottom:12px}
-  .flow .step h3{font-size:16px;margin-bottom:6px}
-  .flow .step p{font-size:13.5px;line-height:1.8}
-  .features{padding:14px 0 28px}
-  .f-row{padding:20px 0;flex-direction:column;gap:8px}
-  .f-row .name{font-size:15px}
-  .f-row .desc{font-size:13.5px;line-height:1.8}
-  .f-row .tag{font-size:10px}
-  .code-wrap{padding:44px 0}
-  .code{padding:18px 20px;font-size:12.5px;line-height:1.95}
-  .final{padding:68px 0}
-  .final h2{font-size:22px;line-height:1.5;margin-bottom:16px}
-  .final p{font-size:14px;margin-bottom:32px}
-  footer{flex-direction:column;gap:12px;text-align:center}
-  footer a{margin:0 10px}
-  .about-seo{padding:48px 0}
-  .about-grid{flex-direction:column;gap:8px}
-  .about-right{padding-top:16px}
-}
+@media(max-width:820px){.hero h1{font-size:32px}.links a{margin-left:12px;font-size:12px}h2{font-size:24px}}
 </style>
 </head>
 <body>
@@ -143,131 +103,136 @@ footer a:hover{color:var(--ink)}
     SpendShield
   </div>
   <div class="links">
-    <a href="#pillars" data-i18n="nav_pillars">Pillars</a>
-    <a href="#gates" data-i18n="nav_gates">Guardrails</a>
-    <a href="#code" data-i18n="nav_quick">Quick start</a>
     <a href="connect.html">Connect</a>
+    <a href="playground.html">Playground</a>
+    <a href="ai-agent-payment-authorization/">Concepts</a>
     <a href="faq.html">FAQ</a>
     <a href="https://github.com/felixpg13-glitch/spendshield">GitHub</a>
-    <button class="lang-btn" onclick="toggleLang()" id="langBtn">EN</button>
   </div>
 </nav>
 
-<div class="hero">
-  <div class="badge"><span class="dot"></span><span data-i18n="badge">AI Agent 付款护栏 · 身份 · 意图 · 密钥 · Python + MCP</span></div>
-  <h1 data-i18n="h1">AI 开始花真钱了，<br><span class="thin" style="font-weight:300;color:var(--muted)">谁给它上闸门？</span></h1>
-  <p data-i18n="hero_sub">AI 没有法律人格，但它必须有数字身份。SpendShield 给每个 Agent 定义带消费上限的身份，在「钱该不该动」和「钱怎么动」之间，加一道确定性护栏。</p>
+<!-- Screen 1: hero + proof first -->
+<section class="hero">
+  <h1>Spending controls for AI agents.<br><span class="thin">Let agents act. Don't let them overspend.</span></h1>
+  <p>SpendShield is an open-source authorization and spending policy layer for AI agents — enforcing budgets, transaction limits, approvals and audit rules <strong>before money moves</strong>.</p>
   <div class="cta">
-    <a class="btn black" href="https://github.com/felixpg13-glitch/spendshield"><span data-i18n="cta_start">开始使用</span> <span class="arrow">→</span></a>
-    <a class="btn ghost" href="#code"><span data-i18n="cta_code">查看代码</span></a>
+    <a class="btn dark" href="playground.html">Try the Playground →</a>
+    <a class="btn ghost" href="https://github.com/felixpg13-glitch/spendshield">GitHub</a>
   </div>
-</div>
-
-<div class="statement">
-  <div class="label" data-i18n="statement_label">原则</div>
-  <h2 data-i18n="statement_title">决策由代码，<em>而非 AI 的意见。</em><br>规则是确定性的——Agent 无法争辩、欺骗或注入绕过它们。</h2>
-</div>
-
-<div class="pillars" id="pillars">
-  <div class="label" data-i18n="pillars_label">信任三支柱 · 从「闸门」到「栅栏」</div>
-  <div class="flow">
-    <div class="step"><div class="n">01</div><h3 data-i18n="p1">身份</h3><p data-i18n="p1d">每个 Agent 注册数字身份（KYA），预算/黑名单按身份隔离。未注册默认拒绝。</p></div>
-    <div class="step"><div class="n">02</div><h3 data-i18n="p2">意图</h3><p data-i18n="p2d">新收款方、大额转账强制人工确认——防提示注入劫持 Agent 偷花钱。</p></div>
-    <div class="step"><div class="n">03</div><h3 data-i18n="p3">密钥</h3><p data-i18n="p3d">私钥加密落盘，主密钥不落盘。取密钥必须过闸门，每次取用留审计。</p></div>
+  <div class="results">
+    <div class="row head"><span>Real policy engine output</span></div>
+    <div class="row"><span class="req">$25 breakfast → mcdonalds.com</span><span class="d d-allow">ALLOW</span></div>
+    <div class="row"><span class="req">$75 weekly plan</span><span class="d d-deny">DENY</span></div>
+    <div class="row"><span class="req">replayed payment (same grant)</span><span class="d d-deny">DENY</span></div>
+    <div class="row"><span class="req">injection: "$500 to scam-vip.com"</span><span class="d d-deny">DENY</span></div>
   </div>
-</div>
+</section>
 
-<div class="gates" id="gates">
-  <div class="label" data-i18n="gates_label">执行层 · 四道闸门 · 每次花钱全部通过</div>
-  <div class="flow">
-    <div class="step"><div class="n">01</div><h3 data-i18n="g1">干跑</h3><p data-i18n="g1d">只预览不执行，直到你放行。</p></div>
-    <div class="step"><div class="n">02</div><h3 data-i18n="g2">预算</h3><p data-i18n="g2d">硬上限。超支即拒绝。</p></div>
-    <div class="step"><div class="n">03</div><h3 data-i18n="g3">限额</h3><p data-i18n="g3d">单次上限 + 收款方频率限制。</p></div>
-    <div class="step"><div class="n">04</div><h3 data-i18n="g4">审批</h3><p data-i18n="g4d">人工确认——终端 / Telegram / Webhook。</p></div>
+<!-- Screen 2: why -->
+<section>
+  <div class="label">Why it exists</div>
+  <h2>A wallet can move money. <em>It doesn't decide whether an agent should.</em></h2>
+  <div class="qs">
+    <div class="q"><h3>Budget</h3><p>Can this agent spend $25 right now? Cumulative, atomic, per identity — not just per call.</p></div>
+    <div class="q"><h3>Authority</h3><p>Is this action actually authorized? Deterministic policy code, not the model's opinion.</p></div>
+    <div class="q"><h3>Execution safety</h3><p>What if the request is replayed, malformed, duplicated, or exceeds policy? Signed single-use grants.</p></div>
   </div>
-</div>
+  <p class="stmt">SpendShield sits between agent intent and payment execution.</p>
+</section>
 
-<div class="features">
-  <div class="f-row"><span class="name" data-i18n="f7n">Agent 身份层</span><span class="desc" data-i18n="f7d">Spend-Capped Identity：给 AI 定义带消费上限的数字身份，KYA 最小实现。</span><span class="tag">v0.4</span></div>
-  <div class="f-row"><span class="name" data-i18n="f8n">意图一致性</span><span class="desc" data-i18n="f8d">新收款方/大额强制审批；交易记忆免反复确认。未配审批通道默认拒绝。</span><span class="tag">v0.5</span></div>
-  <div class="f-row"><span class="name" data-i18n="f9n">密钥保险库</span><span class="desc" data-i18n="f9d">AES 加密落盘，主密钥环境变量持有。取密钥过闸门 + 审计留痕。</span><span class="tag">v0.6</span></div>
-  <div class="f-row"><span class="name" data-i18n="f1n">黑名单 / 白名单</span><span class="desc" data-i18n="f1d">黑名单收款方直接拒绝，白名单信任方跳过确认。</span><span class="tag">v0.2</span></div>
-  <div class="f-row"><span class="name" data-i18n="f3n">策略即代码</span><span class="desc" data-i18n="f3d">所有规则（含按 Agent 分）在一个 YAML。可版本化、可评审、可部署。</span><span class="tag">v0.2</span></div>
-  <div class="f-row"><span class="name" data-i18n="f4n">MCP Server</span><span class="desc" data-i18n="f4d">Claude Code / OpenClaw 等 MCP 兼容 agent 直接调用护栏与密钥。</span><span class="tag">v0.2</span></div>
-  <div class="f-row"><span class="name" data-i18n="f5n">远程审批</span><span class="desc" data-i18n="f5d">Telegram 或 Webhook 审批——无需终端。</span><span class="tag">v0.3</span></div>
-  <div class="f-row"><span class="name" data-i18n="f6n">审计留痕</span><span class="desc" data-i18n="f6d">每次尝试全记录（含谁在花、取了哪个密钥）。导出 JSON，看板可视化。</span><span class="tag">v0.3</span></div>
-</div>
+<!-- Screen 3: the real difference -->
+<section>
+  <div class="label">The difference</div>
+  <h2>A spending limit isn't a spending policy.</h2>
+  <div class="example">
+    <div class="line"><span>Request 1</span><span class="ok">$40 ✓</span></div>
+    <div class="line"><span>Request 2</span><span class="ok">$40 ✓</span></div>
+    <div class="line"><span>Request 3</span><span class="no">$40 ✗</span><span class="why">— daily budget consumed</span></div>
+  </div>
+  <p class="muted" style="margin-top:22px;max-width:640px">But real systems also hit <strong>retries</strong>, <strong>parallel agents</strong>, <strong>duplicate requests</strong>, <strong>transaction splitting</strong> and <strong>malformed or injected input</strong>. So SpendShield isn't just "$100/day" — it's <strong>policy + authorization + enforcement + audit</strong>.</p>
+</section>
 
-<div class="code-wrap" id="code">
-  <div class="label" data-i18n="code_label">快速开始</div>
-  <div class="code"><span class="cmt"># 1. 给 Agent 注册身份 + 专属策略（KYA）</span><br>
-<span class="kw">from</span> spendshield <span class="kw">import</span> SpendShield, KeyVault<br><br>
-guard = SpendShield(<span class="kw">budget</span>=200)<br>
-guard.register_agent(<span class="kw">"mcd_bot"</span>, <span class="kw">budget</span>=50, <span class="kw">whitelist</span>=[<span class="kw">"麦当劳"</span>])<br><br>
-<span class="cmt"># 2. 密钥进保险库（主密钥在环境变量, 不落盘）</span><br>
-vault = KeyVault(<span class="kw">"vault.json"</span>)<br>
-vault.store(<span class="kw">"mcd_sk"</span>, <span class="kw">"sk_live_xxx"</span>)<br>
-guard = SpendShield(<span class="kw">key_vault</span>=vault)<br><br>
-<span class="cmt"># 3. 包住花钱函数: 过闸门 + 记身份</span><br>
-@guard.protect(<span class="kw">"下单"</span>, <span class="kw">agent</span>=<span class="kw">"mcd_bot"</span>)<br>
-<span class="kw">def</span> place_order(amount, to):<br>
-&nbsp;&nbsp;&nbsp;&nbsp;<span class="kw">return</span> call_api(amount, to)  <span class="cmt"># 默认干跑, 绝不真花</span></div>
-</div>
+<!-- Screen 4: real decisions -->
+<section>
+  <div class="label">Watch it decide</div>
+  <h2>See the policy engine make the decision.</h2>
+  <table>
+    <tr><th>Request</th><th>Decision</th><th>Reason</th></tr>
+    <tr><td>$25 breakfast → mcdonalds.com</td><td class="d-allow">ALLOW</td><td>within policy</td></tr>
+    <tr><td>$75 weekly plan → mcdonalds.com</td><td class="d-deny">DENY</td><td>exceeds per-transaction limit</td></tr>
+    <tr><td>replayed request (same grant)</td><td class="d-deny">DENY</td><td>grant already consumed</td></tr>
+    <tr><td>malformed amount / forged signature</td><td class="d-deny">DENY</td><td>fail-closed</td></tr>
+  </table>
+  <p style="margin-top:24px"><a class="btn dark" href="playground.html">Try it yourself →</a></p>
+</section>
 
-<div class="final">
-  <h2 data-i18n="final_h">当 AI 拿着信用卡，<br>规则必须握得更紧。</h2>
-  <p data-i18n="final_p">MIT 开源。在 GitHub 上点个星。</p>
-  <a class="btn black" href="https://github.com/felixpg13-glitch/spendshield">⭐ GitHub</a>
-</div>
-
-<!-- ===== About(SEO 文本 + 产品说明) ===== -->
-<section class="about-seo">
-  <div class="wrap" style="max-width:1100px;margin:0 auto;padding:0 28px">
-    <div class="about-grid">
-      <div class="about-left">
-        <div class="label" data-i18n="about_label">About SpendShield</div>
-        <p data-i18n="about_text">SpendShield is an open-source AI payment guardrail for Python and MCP servers. It gives AI agents a
-        spend-capped digital identity (KYA), four deterministic gates — dry-run, budget, per-transaction limit,
-        and human approval — and defends against prompt injection: new recipients and large amounts always require
-        human sign-off. Built for developers who let agents spend real money.
-        <a href="https://github.com/felixpg13-glitch/spendshield">Star on GitHub →</a></p>
-      </div>
-      <div class="about-right">
-        <span class="chip" data-i18n="chip1">Open Source</span>
-        <span class="chip" data-i18n="chip2">Python</span>
-        <span class="chip" data-i18n="chip3">MCP Server</span>
-        <span class="chip" data-i18n="chip4">KYA Identity</span>
-        <span class="chip" data-i18n="chip5">AES-256</span>
-        <span class="chip ghost" data-i18n="chip6">MIT License</span>
-      </div>
+<!-- Screen 5: how to use -->
+<section>
+  <div class="label">How to use it</div>
+  <h2>Three ways in. Pick yours.</h2>
+  <div class="modes">
+    <div class="mode">
+      <h3>Python</h3>
+      <p>Embed SpendShield into your agent or payment workflow.</p>
+      <code>pip install spendshield</code>
+      <a href="connect.html">Quickstart →</a>
+    </div>
+    <div class="mode">
+      <h3>MCP</h3>
+      <p>Add spending controls to MCP-based agents (Claude, etc.).</p>
+      <code>uvx --from spendshield spendshield-mcp --policy policy.yaml</code>
+      <a href="connect.html">Claude setup →</a>
+    </div>
+    <div class="mode">
+      <h3>Payments / x402</h3>
+      <p>Enforce authorization before payment execution on any rail.</p>
+      <code>spendshield.adapters.x402</code>
+      <a href="x402-spending-limits/">x402 guide →</a>
     </div>
   </div>
 </section>
 
+<!-- Screen 6: not a wallet -->
+<section>
+  <div class="label">Not a wallet</div>
+  <h2>Why it isn't "another agent wallet".</h2>
+  <div class="diagram">Agent
+  ↓
+Intent
+  ↓
+┌────────────────────┐
+│    SpendShield     │
+│  policy            │
+│  authorization     │
+│  budget            │
+│  validation        │
+│  audit             │
+└────────────────────┘
+  ↓
+Wallet / x402 / Stripe
+  ↓
+Payment</div>
+  <p class="pos">SpendShield decides whether an agent is authorized to spend. Your wallet / payment rail executes the payment.</p>
+</section>
+
+<!-- Proof -->
+<section>
+  <div class="label">Proof</div>
+  <h2>Built for real agent payment workflows.</h2>
+  <div class="proofs">
+    <div class="proof"><h3>MCP Registry</h3><p>Published &amp; active: <code>io.github.felixpg13-glitch/spendshield</code> v0.8.3</p><a href="https://registry.modelcontextprotocol.io/">registry ↗</a></div>
+    <div class="proof"><h3>AgentKit example</h3><p>Working integration example — policy before Coinbase AgentKit payment actions, with counted executions.</p><a href="https://github.com/felixpg13-glitch/spendshield/tree/main/examples/integration/agentkit">example ↗</a></div>
+    <div class="proof"><h3>x402 adapter</h3><p>Gate x402 payments before execution, client- and server-side.</p><a href="https://github.com/felixpg13-glitch/spendshield/blob/main/spendshield/adapters/x402.py">adapter ↗</a></div>
+    <div class="proof"><h3>Ecosystem</h3><p>Glama · awesome-x402 · awesome-mcp-servers · Awesome-MCP-ZH · agentic-commerce · AI security tools (PRs open)</p></div>
+    <div class="proof"><h3>Protocol work</h3><p>AP2 conformance vectors · verb-authority composition · external reviewer reproductions</p></div>
+    <div class="proof"><h3>Open source</h3><p>MIT · Python + MCP · adversarial test suite · <a href="failure-map.html">failure map</a> · <a href="checklist.html">security checklist</a></p></div>
+  </div>
+</section>
+
 <footer>
-  <span>SpendShield · MIT · 2026 · <span data-i18n="footer_t">AI 付款安全层</span></span>
-  <span><a href="https://github.com/felixpg13-glitch/spendshield">GitHub</a><a href="connect.html">Connect</a><a href="faq.html">FAQ</a><a href="ai-agent-payment-authorization/">Concepts</a><a href="failure-map.html">Failure map</a><a href="checklist.html">Checklist</a><a href="playground.html">Playground</a><a href="#pillars" data-i18n="nav_pillars">Pillars</a></span>
+  <span>SpendShield · MIT · 2026</span>
+  <span><a href="https://github.com/felixpg13-glitch/spendshield">GitHub</a><a href="connect.html">Connect</a><a href="faq.html">FAQ</a><a href="ai-agent-payment-authorization/">Concepts</a><a href="failure-map.html">Failure map</a><a href="checklist.html">Checklist</a><a href="playground.html">Playground</a></span>
 </footer>
 </div>
-
-<script>
-const I18N = {"nav_pillars":{"zh":"支柱","en":"Pillars"},"nav_gates":{"zh":"闸门","en":"Guardrails"},"nav_quick":{"zh":"快速开始","en":"Quick start"},"badge":{"zh":"AI Agent 付款护栏 · 身份 · 意图 · 密钥 · Python + MCP","en":"AI payment guardrails · Identity · Intent · Keys · Python + MCP"},"h1":{"zh":"AI 开始花真钱了，<br><span class=\"thin\" style=\"font-weight:300;color:var(--muted)\">谁给它上闸门？</span>","en":"AI spends money.<br><span class=\"thin\" style=\"font-weight:300;color:var(--muted)\">Decide whether it should.</span>"},"hero_sub":{"zh":"SpendShield 是 AI 支付的策略编排层——它不关心钱走 x402、支付宝还是 Visa,只裁决一件事:这笔钱该不该花。预算、限额、审批、黑白名单,全部由确定性规则把关,支付通道随时可换。","en":"SpendShield is the policy orchestration layer for AI payments. It doesn't care whether money moves through x402, Stripe or Alipay — it decides whether the payment should happen at all. Budget, limits, approval, blacklists — deterministic rules that stay, while payment channels come and go."},"cta_start":{"zh":"开始使用","en":"Get started"},"cta_code":{"zh":"查看代码","en":"View code"},"statement_label":{"zh":"原则","en":"The principle"},"statement_title":{"zh":"决策由代码，<em>而非 AI 的意见。</em><br>规则是确定性的——Agent 无法争辩、欺骗或注入绕过它们。","en":"Decisions by code, <em>never by AI opinion.</em><br>Rules are deterministic. Agents cannot argue, trick, or inject their way past them."},"pillars_label":{"zh":"信任三支柱 · 从「闸门」到「栅栏」","en":"Three trust pillars · from gate to fence"},"p1":{"zh":"身份","en":"Identity"},"p1d":{"zh":"每个 Agent 注册数字身份（KYA），预算/黑名单按身份隔离。未注册默认拒绝。","en":"Every agent gets a digital identity (KYA). Budgets and blacklists are per-identity. Unregistered = denied."},"p2":{"zh":"意图","en":"Intent"},"p2d":{"zh":"新收款方、大额转账强制人工确认——防提示注入劫持 Agent 偷花钱。","en":"New recipients and large transfers require human sign-off — stops prompt-injected agents from spending without you."},"p3":{"zh":"密钥","en":"Keys"},"p3d":{"zh":"私钥加密落盘，主密钥不落盘。取密钥必须过闸门，每次取用留审计。","en":"Secrets encrypted at rest, master key never on disk. Access requires passing the gates; every access is audited."},"gates_label":{"zh":"执行层 · 四道闸门 · 每次花钱全部通过","en":"Execution · four gates · every spend passes all of them"},"g1":{"zh":"干跑","en":"Dry run"},"g1d":{"zh":"只预览不执行，直到你放行。","en":"Preview only. Nothing executes until you say so."},"g2":{"zh":"预算","en":"Budget"},"g2d":{"zh":"硬上限。超支即拒绝。","en":"Hard ceiling. Over budget means denied."},"g3":{"zh":"限额","en":"Limits"},"g3d":{"zh":"单次上限 + 收款方频率限制。","en":"Per-transaction cap & recipient rate limiting."},"g4":{"zh":"审批","en":"Approval"},"g4d":{"zh":"人工确认——终端 / Telegram / Webhook。","en":"Human sign-off — console, Telegram, or webhook."},"f7n":{"zh":"Agent 身份层","en":"Agent identity"},"f7d":{"zh":"Spend-Capped Identity：给 AI 定义带消费上限的数字身份，KYA 最小实现。","en":"Spend-Capped Identity: digital identity with a spending cap. A minimal KYA implementation."},"f8n":{"zh":"意图一致性","en":"Intent alignment"},"f8d":{"zh":"新收款方/大额强制审批；交易记忆免反复确认。未配审批通道默认拒绝。","en":"New recipients & large amounts force approval; a transaction memory stops repeat prompts. Deny by default without an approval channel."},"f9n":{"zh":"密钥保险库","en":"Secret vault"},"f9d":{"zh":"AES 加密落盘，主密钥环境变量持有。取密钥过闸门 + 审计留痕。","en":"AES-encrypted at rest, master key in env. Key access passes the gates and is audited."},"f1n":{"zh":"黑名单 / 白名单","en":"Blacklist / Whitelist"},"f1d":{"zh":"黑名单收款方直接拒绝，白名单信任方跳过确认。","en":"Block known-bad recipients outright. Trusted ones skip approval."},"f3n":{"zh":"策略即代码","en":"Policy as code"},"f3d":{"zh":"所有规则（含按 Agent 分）在一个 YAML。可版本化、可评审、可部署。","en":"All rules, including per-agent ones, in one YAML. Version it, review it, deploy it."},"f4n":{"zh":"MCP Server","en":"MCP server"},"f4d":{"zh":"Claude Code / OpenClaw 等 MCP 兼容 agent 直接调用护栏与密钥。","en":"Claude Code, OpenClaw and any MCP agent calls the guard and vault directly."},"f5n":{"zh":"远程审批","en":"Remote approval"},"f5d":{"zh":"Telegram 或 Webhook 审批——无需终端。","en":"Approve on Telegram or via webhook — no terminal required."},"f6n":{"zh":"审计留痕","en":"Audit trail"},"f6d":{"zh":"每次尝试全记录（含谁在花、取了哪个密钥）。导出 JSON，看板可视化。","en":"Every attempt recorded — who spent, which key was accessed. Export JSON, visualize on the dashboard."},"code_label":{"zh":"快速开始","en":"Quick start"},"final_h":{"zh":"当 AI 拿着信用卡，<br>规则必须握得更紧。","en":"When AI holds the card,<br>make sure the rules hold too."},"final_p":{"zh":"MIT 开源。在 GitHub 上点个星。","en":"MIT licensed. Star it on GitHub."},"footer_t":{"zh":"AI 付款安全层","en":"AI Payment Safety Layer"},"about_label":{"zh":"关于 SpendShield","en":"About SpendShield"},"about_text":{"zh":"SpendShield 是面向 Python 与 MCP 的开源 AI 付款护栏。它为 AI Agent 定义带消费上限的数字身份（KYA），提供四道确定性闸门——干跑、预算、单次限额、人工审批——并防御提示注入：新收款方与大额支付必须人工确认。为让 Agent 花真钱的开发者而生。<a href=\"https://github.com/felixpg13-glitch/spendshield\">去 GitHub 点个星 →</a>","en":"SpendShield is an open-source AI payment guardrail for Python and MCP servers. It gives AI agents a spend-capped digital identity (KYA), four deterministic gates — dry-run, budget, per-transaction limit, and human approval — and defends against prompt injection: new recipients and large amounts always require human sign-off. Built for developers who let agents spend real money.<a href=\"https://github.com/felixpg13-glitch/spendshield\">Star on GitHub →</a>"},"chip1":{"zh":"开源","en":"Open Source"},"chip2":{"zh":"Python","en":"Python"},"chip3":{"zh":"MCP 服务","en":"MCP Server"},"chip4":{"zh":"KYA 身份","en":"KYA Identity"},"chip5":{"zh":"AES-256","en":"AES-256"},"chip6":{"zh":"MIT 许可证","en":"MIT License"}};
-let LANG = 'zh';
-const saved = localStorage.getItem('sg-lang');
-if(saved === 'en' || saved === 'zh') LANG = saved;
-function applyLang(){
-  document.querySelectorAll('[data-i18n]').forEach(el=>{
-    const key = el.getAttribute('data-i18n');
-    if(I18N[key] && I18N[key][LANG]) el.innerHTML = I18N[key][LANG];
-  });
-  document.getElementById('langBtn').textContent = LANG==='zh' ? 'EN' : '中文';
-}
-function toggleLang(){
-  LANG = LANG==='zh' ? 'en' : 'zh';
-  applyLang();
-  localStorage.setItem('sg-lang', LANG);
-}
-applyLang();
-</script>
 </body>
 </html>
