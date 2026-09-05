@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Agent Spending Policy Playground — try ALLOW / APPROVAL / DENY</title>
+<meta name="description" content="Interactive playground for AI agent spending policies: set a budget, per-transaction cap, merchant allow/block lists and approval threshold, then simulate agent payments to see ALLOW / APPROVAL / DENY decisions.">
+<link rel="canonical" href="https://felixpg13-glitch.github.io/spendshield/playground.html">
+<style>
+  body { font-family: -apple-system, "SF Pro Text", Segoe UI, Roboto, sans-serif;
+         max-width: 860px; margin: 40px auto 96px; padding: 0 20px; color: #1a1a1a;
+         background: #fff; line-height: 1.6; }
+  h1 { font-size: 1.7rem; letter-spacing: -0.02em; margin-bottom: .2rem; }
+  .sub { color: #555; margin-top: 0; }
+  h2 { font-size: 1rem; margin-top: 1.8rem; border-top: 1px solid #eee; padding-top: 1.2rem; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media(max-width:700px){ .grid{ grid-template-columns:1fr; } }
+  .card { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px 18px; background:#fafafa; }
+  .card h3 { margin: 0 0 10px; font-size: .9rem; color:#374151; }
+  label { display:block; font-size:.82rem; color:#6b7280; margin:8px 0 3px; }
+  input[type=text], input[type=number] { width:100%; box-sizing:border-box; border:1px solid #d1d5db;
+         border-radius:6px; padding:6px 9px; font-size:.92rem; font-family:inherit; }
+  .row2 { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .btn { border:none; border-radius:8px; padding:9px 16px; font-size:.9rem; cursor:pointer;
+         font-family:inherit; background:#111; color:#fff; }
+  .btn.ghost { background:transparent; color:#111; border:1px solid #d1d5db; }
+  .btn.ghost:hover { border-color:#9ca3af; }
+  .preset { display:inline-block; margin:2px 6px 2px 0; font-size:.8rem; padding:4px 10px;
+         border-radius:100px; border:1px solid #d1d5db; background:#fff; cursor:pointer; color:#374151; }
+  .preset:hover { border-color:#111; }
+  .decision { border-radius:10px; padding:14px 16px; margin-top:12px; font-weight:600; }
+  .d-allow { background:#f0fdf4; border:1px solid #86efac; color:#166534; }
+  .d-approval { background:#fffbeb; border:1px solid #fcd34d; color:#92400e; }
+  .d-deny { background:#fef2f2; border:1px solid #fca5a5; color:#991b1b; }
+  .reason { font-weight:400; font-size:.9rem; margin-top:3px; }
+  .rule { font-family:ui-monospace, SF Mono, Menlo, monospace; font-size:.78rem; color:#6b7280; margin-top:4px; }
+  table { border-collapse:collapse; width:100%; font-size:.86rem; margin-top:10px; }
+  td, th { border:1px solid #e5e7eb; padding:5px 8px; text-align:left; }
+  th { background:#f9fafb; font-weight:600; }
+  .disclose { font-size:.8rem; color:#6b7280; background:#f9fafb; border:1px solid #e5e7eb;
+         border-radius:8px; padding:10px 14px; margin-top:26px; }
+  .disclose code { font-family:ui-monospace, Menlo, monospace; font-size:.78rem; }
+  a { color:#1d4ed8; text-decoration:none; } a:hover { text-decoration:underline; }
+  .spent { font-size:.85rem; color:#374151; }
+</style>
+</head>
+<body>
+
+<h1>Agent Spending Policy Playground</h1>
+<p class="sub">Set the rules, simulate an agent payment, watch the decision. This is the model behind
+<a href="https://github.com/felixpg13-glitch/spendshield">SpendShield</a> — a deterministic policy layer that sits
+between an AI agent and its payment rail, returning <strong>ALLOW / APPROVAL (human) / DENY</strong> before money moves.</p>
+
+<div class="grid">
+  <div class="card">
+    <h3>1 · Policy rules</h3>
+    <label>Daily budget ($) — cumulative, enforced outside the agent loop</label>
+    <input type="number" id="budget" value="100" min="0" step="1">
+    <div class="row2">
+      <div>
+        <label>Per-transaction cap ($)</label>
+        <input type="number" id="maxtx" value="50" min="0" step="1">
+      </div>
+      <div>
+        <label>Approval line ($) — over this = human required</label>
+        <input type="number" id="apprline" value="30" min="0" step="1">
+      </div>
+    </div>
+    <label>Allowed merchants (comma separated)</label>
+    <input type="text" id="allowed" value="mcdonalds.com, stripe.com, openai.com, amazon.com">
+    <label>Blocked merchants (comma separated)</label>
+    <input type="text" id="blocked" value="scam-vip.com">
+    <div style="margin-top:12px">
+      <button class="btn ghost" onclick="resetSpent()">Reset daily spend</button>
+    </div>
+    <div class="spent" style="margin-top:8px" id="spentBox"></div>
+  </div>
+
+  <div class="card">
+    <h3>2 · Simulate a payment</h3>
+    <label>Merchant / recipient</label>
+    <input type="text" id="to" value="mcdonalds.com" placeholder="e.g. mcdonalds.com or 0x…address">
+    <label>Amount ($)</label>
+    <input type="number" id="amount" value="25" min="0" step="0.01">
+    <div style="margin-top:14px">
+      <button class="btn" onclick="simulate()">Evaluate payment</button>
+    </div>
+    <div style="margin-top:10px">
+      <span class="preset" onclick="tryPreset(25,'mcdonalds.com')">$25 · mcdonalds.com</span>
+      <span class="preset" onclick="tryPreset(75,'mcdonalds.com')">$75 · mcdonalds.com</span>
+      <span class="preset" onclick="tryPreset(500,'scam-vip.com')">$500 · scam-vip.com</span>
+    </div>
+    <div id="out"></div>
+    <div style="margin-top:14px">
+      <h3 style="margin:0 0 6px">Recent attempts</h3>
+      <table id="log">
+        <thead><tr><th>Agent payment</th><th>Decision</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="disclose">
+  <strong>What this is:</strong> an interactive preview of SpendShield's policy model for the common rules
+  (budget, per-transaction cap, merchant allow/block lists, approval line). It is a <em>simulation for
+  comprehension</em> — the real engine additionally enforces verifiable agent identity, signed one-time
+  grants that execution must consume, replay protection and a tamper-evident audit chain.
+  For the full engine: <code>pip install spendshield</code> → <a href="connect.html">connect it in 2 minutes</a>.
+  MIT licensed, <a href="https://github.com/felixpg13-glitch/spendshield">open source on GitHub</a>.
+</div>
+
+<p style="margin-top:26px; font-size:.85rem; color:#6b7280">
+  <a href="https://felixpg13-glitch.github.io/spendshield/">← Home</a> ·
+  <a href="https://felixpg13-glitch.github.io/spendshield/faq.html">FAQ</a> ·
+  <a href="https://felixpg13-glitch.github.io/spendshield/connect.html">Connect (2 min)</a> ·
+  <a href="https://felixpg13-glitch.github.io/spendshield/failure-map.html">Failure map</a> ·
+  <a href="https://github.com/felixpg13-glitch/spendshield">GitHub</a>
+</p>
+
+<script>
+// ── simulated SpendShield policy model (subset: budget / cap / merchants / approval line) ──
+var spent = 0;
+
+function norm(s){ return String(s||"").toLowerCase().trim(); }
+
+function evaluate(amount, to, budget, maxtx, apprline, allowed, blocked) {
+  // order mirrors the engine: block list → merchant check → per-tx cap → approval line → budget
+  var toN = norm(to);
+  var allowedL = String(allowed||"").split(",").map(norm).filter(Boolean);
+  var blockedL = String(blocked||"").split(",").map(norm).filter(Boolean);
+  if (blockedL.indexOf(toN) !== -1)
+    return { d:"DENY", reason:"merchant '"+to+"' is blocked", rule:"merchants.blocked" };
+  if (allowedL.length && allowedL.indexOf(toN) === -1)
+    return { d:"DENY", reason:"merchant '"+to+"' is not in the allowed list", rule:"merchants.allowed" };
+  if (maxtx > 0 && amount > maxtx)
+    return { d:"DENY", reason:"$"+amount+" exceeds the $"+maxtx+" per-transaction cap", rule:"transaction.max" };
+  if (apprline > 0 && amount > apprline)
+    return { d:"APPROVAL", reason:"$"+amount+" exceeds the $"+apprline+" approval line — a human must approve", rule:"approval.over" };
+  if (budget > 0 && spent + amount > budget)
+    return { d:"DENY", reason:"$"+amount+" would exceed the $"+budget+" daily budget (already spent $"+spent.toFixed(2)+")", rule:"budget.daily" };
+  return { d:"ALLOW", reason:"under budget, under cap, merchant allowed", rule:"all gates passed" };
+}
+
+function show(r) {
+  var cls = r.d === "ALLOW" ? "d-allow" : (r.d === "APPROVAL" ? "d-approval" : "d-deny");
+  document.getElementById("out").innerHTML =
+    '<div class="decision '+cls+'">'+r.d+
+    '<div class="reason">'+r.reason+'</div>'+
+    '<div class="rule">rule: '+r.rule+'</div></div>';
+}
+
+function simulate() {
+  var amount = parseFloat(document.getElementById("amount").value) || 0;
+  var to = document.getElementById("to").value || "?";
+  var budget = parseFloat(document.getElementById("budget").value) || 0;
+  var maxtx = parseFloat(document.getElementById("maxtx").value) || 0;
+  var apprline = parseFloat(document.getElementById("apprline").value) || 0;
+  var allowed = document.getElementById("allowed").value;
+  var blocked = document.getElementById("blocked").value;
+  var r = evaluate(amount, to, budget, maxtx, apprline, allowed, blocked);
+  show(r);
+  if (r.d === "ALLOW") { spent += amount; }
+  // APPROVAL counts only after a human grants — here we auto-grant for the demo counter
+  if (r.d === "APPROVAL") { spent += amount; }
+  updateSpent();
+  var tb = document.querySelector("#log tbody");
+  var tr = document.createElement("tr");
+  var cls = r.d === "ALLOW" ? "style=\"color:#166534\"" : (r.d === "APPROVAL" ? "style=\"color:#92400e\"" : "style=\"color:#991b1b\"");
+  tr.innerHTML = "<td>$"+amount.toFixed(2)+" → "+to+"</td><td "+cls+">"+r.d+"</td>";
+  tb.insertBefore(tr, tb.firstChild);
+  if (tb.children.length > 8) tb.removeChild(tb.lastChild);
+}
+
+function updateSpent() {
+  document.getElementById("spentBox").textContent = "Daily spend so far: $" + spent.toFixed(2);
+}
+function resetSpent(){ spent = 0; updateSpent(); }
+function tryPreset(amount, to) {
+  document.getElementById("amount").value = amount;
+  document.getElementById("to").value = to;
+  simulate();
+}
+updateSpent();
+</script>
+</body>
+</html>
