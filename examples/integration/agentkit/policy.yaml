@@ -1,0 +1,25 @@
+version: "2.1.0"
+# Demo policy for the AgentKit integration example.
+# Amounts are policy units (symbolic) — this demo never touches a real chain.
+policy:
+  budget:
+    daily: 100
+  transaction:
+    max: 50
+  merchants:
+    # AgentKit native_transfer recipients are addresses; policy matches the "to" field.
+    allowed:
+      - "0x1111111111111111111111111111111111111111"   # acme-vendor (trusted)
+    blocked:
+      - "0x9999999999999999999999999999999999999999"   # scam-address
+  approval:
+    over: 30          # > $30 needs a human even for an allowed merchant
+    new_merchant: false
+    channel: console
+agents:
+  demo-agent:
+    transaction:
+      max: 50
+    approval:
+      over: 30
+      new_merchant: false
