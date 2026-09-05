@@ -45,7 +45,7 @@ pip install spendshield
 uvx --from spendshield spendshield-mcp
 ```
 
-👉 **Try it with your agent** — [Connect it in 2 minutes](https://felixpg13-glitch.github.io/spendshield/connect.html) · jump to [Quickstart](#quickstart-5-minutes-to-running)
+👉 **Try it with your agent** — [Connect it in 2 minutes](https://felixpg13-glitch.github.io/spendshield/connect.html) · [Playground](https://felixpg13-glitch.github.io/spendshield/playground.html) · [Concepts](https://felixpg13-glitch.github.io/spendshield/ai-agent-payment-authorization/) · jump to [Quickstart](#quickstart-5-minutes-to-running)
 
 [**▶ 30-second interactive demo**](https://felixpg13-glitch.github.io/spendshield/demo.html) — watch an AI agent get stopped.
 
