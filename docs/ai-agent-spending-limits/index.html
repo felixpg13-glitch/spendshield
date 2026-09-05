@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Agent Spending Limits — how much can an agent spend?</title>
+<meta name="description" content="Spending limits for AI agents: per-transaction caps, budget windows, merchant constraints and approval thresholds — and why a limit alone is not a complete authorization model.">
+<link rel="canonical" href="https://felixpg13-glitch.github.io/spendshield/ai-agent-spending-limits/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "AI Agent Spending Limits",
+  "description": "Per-transaction caps, budget windows, merchant constraints and approval thresholds for AI agents — and why a spending limit is necessary but not a complete authorization model.",
+  "url": "https://felixpg13-glitch.github.io/spendshield/ai-agent-spending-limits/"
+}
+</script>
+<style>
+  body { font-family: -apple-system, "SF Pro Text", Segoe UI, Roboto, sans-serif;
+         max-width: 760px; margin: 48px auto 96px; padding: 0 20px; color: #1a1a1a;
+         background: #fff; line-height: 1.65; }
+  h1 { font-size: 1.9rem; letter-spacing: -0.02em; margin-bottom: .3rem; }
+  .sub { color: #555; margin-top: 0; font-size: 1.02rem; }
+  h2 { font-size: 1.2rem; margin-top: 2.6rem; border-top: 1px solid #eee; padding-top: 1.4rem; }
+  code, pre { font-family: ui-monospace, SF Mono, Menlo, Consolas, monospace; }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+  pre { background: #f6f8fa; padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+        font-size: .83rem; line-height: 1.55; margin: .6rem 0; }
+  .core { background:#f5f3ff; border:1px solid #ddd6fe; border-radius:10px; padding:16px 18px; margin:1rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; margin: .6rem 0; }
+  td, th { border: 1px solid #e5e7eb; padding: 6px 10px; text-align: left; }
+  th { background: #f9fafb; }
+  .ok { color:#166534; font-weight:600; } .mid { color:#92400e; font-weight:600; } .no { color:#991b1b; font-weight:600; }
+  a { color:#1d4ed8; text-decoration:none; } a:hover { text-decoration: underline; }
+  .muted { color:#6b7280; font-size:.92rem; }
+  .ring { display:flex; flex-wrap:wrap; gap:8px; margin-top:.8rem; }
+  .ring a { border:1px solid #e5e7eb; border-radius:100px; padding:4px 12px; font-size:.85rem; color:#374151; }
+  .ring a:hover { border-color:#111; color:#111; text-decoration:none; }
+</style>
+</head>
+<body>
+
+<h1>AI Agent Spending Limits</h1>
+<p class="sub">How much should an agent be allowed to spend — and why "how much" is only half the answer.</p>
+
+<h2>The question</h2>
+<p>Agents burn tokens, call paid APIs, trigger cloud spend and move money. Teams answer with limits: a per-transaction
+cap, a daily budget, a whitelist. That instinct is right — but a limit answers <em>how much</em>, while the harder
+question is <em>whether this specific payment is allowed at all</em>.</p>
+
+<h2>Why a limit alone is insufficient</h2>
+<p>A spending limit is <strong>necessary, but it is not a complete authorization model</strong>. Limits constrain
+quantities; they don't judge intent:</p>
+<ul>
+  <li>A $50 cap doesn't stop five $40 calls — <strong>transaction splitting</strong> changes the effective total.</li>
+  <li>A daily budget doesn't stop a <strong>retry storm</strong> that spends the whole day in one incident.</li>
+  <li><strong>Parallel actions</strong> can race a budget check: two concurrent requests both see "budget remaining" and both pass.</li>
+  <li>A limit never asks <em>who is this recipient?</em> — the wrong merchant gets the money as long as it fits the cap.</li>
+</ul>
+<p>Limits are the frame. Authorization is the judgment inside the frame.</p>
+
+<h2>Threat / failure modes</h2>
+<ul>
+  <li><strong>Runaway loop</strong> — an agent retrying a failing action, each retry within the cap, until the budget is gone.</li>
+  <li><strong>Splitting</strong> — dividing one large payment into many cap-sized ones.</li>
+  <li><strong>Concurrency race</strong> — N parallel requests passing a shared budget check.</li>
+  <li><strong>Wrong recipient</strong> — a trusted cap, an untrusted destination (typo, injection, tampered parameter).</li>
+  <li><strong>Stale authorization</strong> — "approved" once, replayed later after the policy changed.</li>
+</ul>
+
+<h2>Architecture: limits inside an authorization decision</h2>
+<pre>payment request (amount, recipient, agent)
+        │
+        ▼
+authorize()  ── evaluated in one place, atomically:
+        │       ├── per-transaction cap
+        │       ├── budget window (daily/monthly, cumulative, per agent)
+        │       ├── merchant / recipient policy (allow / block)
+        │       ├── approval threshold (over $X → human)
+        │       └── identity (which agent is spending)
+        ▼
+ALLOW (signed grant) / APPROVAL (human) / DENY
+        ▼
+executor verifies the grant — then, and only then, the rail executes</pre>
+<p>Because every check happens <strong>outside the agent loop</strong>, in one atomic decision, splitting and racing
+can't dodge it: the budget counter is updated in the same step as the decision, and execution requires the grant.</p>
+
+<h2>Minimal policy</h2>
+<pre># policy.yaml
+version: "2.1.0"
+policy:
+  budget:      { daily: 100, monthly: 1000 }   # cumulative windows
+  transaction: { max: 50 }                      # per-payment cap
+  merchants:
+    allowed: [openai.com, mcdonalds.com]        # recipient policy
+    blocked: [scam-vip.com]
+  approval:    { over: 30 }                     # over $30 → human
+agents:
+  shopping-agent:
+    budget:      { daily: 50 }
+    transaction: { max: 25 }</pre>
+<pre>from spendshield import SpendShield
+shield = SpendShield(dry_run=False)
+shield.load_policy("policy.yaml")
+r = shield.authorize(agent="shopping-agent", amount=40, to="openai.com")
+# $40 > $30 approval line → APPROVAL (human decides)
+r = shield.authorize(agent="shopping-agent", amount=45, to="scam-vip.com")
+# → DENY (blocked merchant), regardless of budget</pre>
+
+<h2>ALLOW / APPROVAL / DENY in practice</h2>
+<table>
+  <tr><th>Request</th><th>Outcome</th></tr>
+  <tr><td>$20 → openai.com (under cap, under approval line, budget left)</td><td><span class="ok">ALLOW</span></td></tr>
+  <tr><td>$40 → openai.com (over approval line)</td><td><span class="mid">APPROVAL — human required</span></td></tr>
+  <tr><td>split attempt: 3 × $20 → openai.com</td><td><span class="no">each ALLOW but budget consumed cumulatively — the third hits the daily window</span></td></tr>
+  <tr><td>$500 → scam-vip.com</td><td><span class="no">DENY — blocked merchant (cap never even matters)</span></td></tr>
+</table>
+
+<h2>Where SpendShield fits</h2>
+<p><a href="https://github.com/felixpg13-glitch/spendshield">SpendShield</a> implements this model — limits as one part
+of a deterministic authorization decision, enforced with a signed single-use grant that execution must consume.
+Open source, MIT, Python + MCP. Try the <a href="../playground.html">interactive policy playground</a> to feel the
+difference between a cap and a decision.</p>
+<ul>
+  <li>Library: <code>pip install spendshield</code></li>
+  <li>MCP: <code>uvx --from spendshield spendshield-mcp --policy policy.yaml</code></li>
+</ul>
+
+<h2>Related pages</h2>
+<div class="ring">
+  <a href="../ai-agent-payment-authorization/">AI Agent Payment Authorization</a>
+  <a href="../x402-spending-limits/">x402 Spending Limits</a>
+  <a href="../agent-payment-approval-workflow/">Agent Payment Approval Workflow</a>
+  <a href="../prevent-ai-agents-from-overspending/">Prevent AI Agents From Overspending</a>
+</div>
+
+<p class="muted" style="margin-top:3rem">
+  <a href="../">← Home</a> · <a href="https://github.com/felixpg13-glitch/spendshield">GitHub</a> · MIT licensed
+</p>
+
+</body>
+</html>

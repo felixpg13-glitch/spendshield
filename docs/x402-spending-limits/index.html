@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>x402 Spending Limits — where policy sits in an x402 flow</title>
+<meta name="description" content="x402 is a payment rail: it quotes and settles machine payments. Spending limits and policy belong in an independent authorization layer before execution.">
+<link rel="canonical" href="https://felixpg13-glitch.github.io/spendshield/x402-spending-limits/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "x402 Spending Limits",
+  "description": "Where spending limits and policy belong in an x402 payment flow: x402 is the rail, an independent authorization layer decides before execution.",
+  "url": "https://felixpg13-glitch.github.io/spendshield/x402-spending-limits/"
+}
+</script>
+<style>
+  body { font-family: -apple-system, "SF Pro Text", Segoe UI, Roboto, sans-serif;
+         max-width: 760px; margin: 48px auto 96px; padding: 0 20px; color: #1a1a1a;
+         background: #fff; line-height: 1.65; }
+  h1 { font-size: 1.9rem; letter-spacing: -0.02em; margin-bottom: .3rem; }
+  .sub { color: #555; margin-top: 0; font-size: 1.02rem; }
+  h2 { font-size: 1.2rem; margin-top: 2.6rem; border-top: 1px solid #eee; padding-top: 1.4rem; }
+  code, pre { font-family: ui-monospace, SF Mono, Menlo, Consolas, monospace; }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+  pre { background: #f6f8fa; padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+        font-size: .83rem; line-height: 1.55; margin: .6rem 0; }
+  .core { background:#f5f3ff; border:1px solid #ddd6fe; border-radius:10px; padding:16px 18px; margin:1rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; margin: .6rem 0; }
+  td, th { border: 1px solid #e5e7eb; padding: 6px 10px; text-align: left; }
+  th { background: #f9fafb; }
+  .ok { color:#166534; font-weight:600; } .mid { color:#92400e; font-weight:600; } .no { color:#991b1b; font-weight:600; }
+  a { color:#1d4ed8; text-decoration:none; } a:hover { text-decoration: underline; }
+  .muted { color:#6b7280; font-size:.92rem; }
+  .ring { display:flex; flex-wrap:wrap; gap:8px; margin-top:.8rem; }
+  .ring a { border:1px solid #e5e7eb; border-radius:100px; padding:4px 12px; font-size:.85rem; color:#374151; }
+  .ring a:hover { border-color:#111; color:#111; text-decoration:none; }
+</style>
+</head>
+<body>
+
+<h1>x402 Spending Limits</h1>
+<p class="sub">Where do spending limits and policy actually sit in an x402 payment flow?</p>
+
+<h2>The question</h2>
+<p><a href="https://github.com/coinbase/x402">x402</a> (HTTP 402 Payment Required) lets a machine pay for an API call:
+the server quotes a price, the client submits a signed payment, a facilitator settles it, and the response arrives.
+It is a clean answer to <em>how an agent pays</em>. It does not answer <em>whether this payment should happen under
+your rules</em> — budgets, recipient policy, approval thresholds, replay discipline. Those live around the rail,
+in an authorization layer that runs <strong>before execution</strong>.</p>
+
+<h2>Why spending policy belongs outside the protocol</h2>
+<p>A payment protocol optimizes for one thing: moving money correctly once it is authorized. It is not the right home
+for your spending policy, for the same reason a card network isn't your corporate expense policy:</p>
+<ul>
+  <li><strong>Policy is per-organization and per-agent.</strong> Your budget windows, allow/block lists and approval
+      lines are yours — putting them in the protocol would push every participant onto one global rule set.</li>
+  <li><strong>Decisions need context the rail doesn't have.</strong> "Is this the third payment to this recipient in
+      an hour?" is a policy question about your agents, not a protocol question about this one transfer.</li>
+  <li><strong>Execution should be dumb.</strong> A rail that executes whatever it is told is easy to audit. The
+      intelligence sits in front of it, where it can be versioned, reviewed and rolled back.</li>
+</ul>
+<div class="core">
+<b>x402 is the payment rail. SpendShield is the authorization layer before execution.</b>
+Applications using x402 may want an independent authorization layer around payment execution — the same way any
+payment-capable application can. The protocol stays untouched; the policy sits in front.
+</div>
+
+<h2>Threat / failure modes in an x402 agent flow</h2>
+<ul>
+  <li><strong>Autonomous signing</strong> — an agent with wallet keys will happily sign many small payments; a prompt
+      injection turns that into many payments to the wrong address.</li>
+  <li><strong>Retry storms</strong> — a timed-out 402 that actually settled; the retry pays twice. The client needs
+      replay discipline around execution.</li>
+  <li><strong>Cross-call budgets</strong> — per-payment quotes say nothing about cumulative spend across a session,
+      a day, or an agent fleet.</li>
+  <li><strong>Stale or stolen intent</strong> — an authorization meant for one resource reused elsewhere.</li>
+</ul>
+
+<h2>Architecture</h2>
+<pre>agent wants a paid API result
+        │
+        ▼
+SpendShield.authorize(amount, recipient, agent)     ← your policy, atomic
+        │
+        ├── ALLOW    → signed one-time grant
+        ├── APPROVAL → human approves → grant
+        └── DENY     → the x402 flow never starts
+        │
+        ▼
+executor verifies grant (once; replay refused)
+        │
+        ▼
+x402 flow: quote → sign → facilitator → settle → result
+        │
+        ▼
+budget accounted atomically + audit event</pre>
+<p>Neither the x402 server nor the facilitator changes. SpendShield slots into the client side (and can gate a
+paywall server side too) — <a href="https://github.com/felixpg13-glitch/spendshield/blob/main/spendshield/adapters/x402.py">the
+x402 adapter</a> shows both shapes: <code>protect_x402_payment</code> before submitting, and a paywall guard before
+settling a resource.</p>
+
+<h2>Minimal example</h2>
+<pre>from spendshield.adapters.x402 import protect_x402_payment
+
+# client side: gate before submitting the payment
+ok = protect_x402_payment(
+    guard, amount=0.05, to="weather-api.example.com",
+    agent="research-agent", dry_run=True)
+# → ALLOW: proceed with the x402 quote/sign/settle flow
+# → DENY : do not sign, nothing is submitted</pre>
+<pre># policy.yaml — same policy language as any other rail
+version: "2.1.0"
+policy:
+  budget:      { daily: 5 }              # $5/day of paid APIs
+  transaction: { max: 1 }
+  merchants:
+    allowed: [weather-api.example.com, search.example.com]
+    blocked: [unknown-facilitator.example]
+  approval:    { over: 0.5 }</pre>
+
+<h2>ALLOW / APPROVAL / DENY in practice</h2>
+<table>
+  <tr><th>Paid API request</th><th>Outcome</th></tr>
+  <tr><td>$0.05 → weather-api.example.com (within daily budget)</td><td><span class="ok">ALLOW → x402 flow proceeds</span></td></tr>
+  <tr><td>$0.70 → weather-api.example.com (over approval line)</td><td><span class="mid">APPROVAL → human decides</span></td></tr>
+  <tr><td>$0.05 × 60 calls (cross-call)</td><td><span class="no">budget window hit — later calls DENY even though each fits the cap</span></td></tr>
+  <tr><td>$0.05 → unknown-facilitator.example</td><td><span class="no">DENY — recipient not allowed</span></td></tr>
+</table>
+
+<h2>Where SpendShield fits</h2>
+<p><a href="https://github.com/felixpg13-glitch/spendshield">SpendShield</a> is the authorization layer that sits in
+front of x402 (or any rail): deterministic ALLOW / APPROVAL / DENY, signed one-time grants, atomic budget accounting,
+tamper-evident audit. Open source, MIT, Python + MCP — and rail-agnostic, so the same policy keeps working if you
+later add Stripe, a wallet, or a second protocol.</p>
+<ul>
+  <li>Library: <code>pip install spendshield</code></li>
+  <li>x402 adapter: <code>spendshield/adapters/x402.py</code></li>
+</ul>
+
+<h2>Related pages</h2>
+<div class="ring">
+  <a href="../ai-agent-payment-authorization/">AI Agent Payment Authorization</a>
+  <a href="../ai-agent-spending-limits/">AI Agent Spending Limits</a>
+  <a href="../agent-payment-approval-workflow/">Agent Payment Approval Workflow</a>
+  <a href="../prevent-ai-agents-from-overspending/">Prevent AI Agents From Overspending</a>
+</div>
+
+<p class="muted" style="margin-top:3rem">
+  <a href="../">← Home</a> · <a href="https://github.com/felixpg13-glitch/spendshield">GitHub</a> · MIT licensed
+</p>
+
+</body>
+</html>
