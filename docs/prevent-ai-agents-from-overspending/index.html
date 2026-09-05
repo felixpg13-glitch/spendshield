@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to Prevent AI Agents From Overspending — failure modes, not wishful limits</title>
+<meta name="description" content="The six ways agents overspend — retry storms, parallel execution, transaction splitting, wrong recipient, prompt injection, approval replay — and the controls that stop each one.">
+<link rel="canonical" href="https://felixpg13-glitch.github.io/spendshield/prevent-ai-agents-from-overspending/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "How to Prevent AI Agents From Overspending",
+  "description": "Retry storms, parallel execution, transaction splitting, wrong recipient, prompt injection, approval replay: the failure modes behind agent overspending and the controls that stop them.",
+  "url": "https://felixpg13-glitch.github.io/spendshield/prevent-ai-agents-from-overspending/"
+}
+</script>
+<style>
+  body { font-family: -apple-system, "SF Pro Text", Segoe UI, Roboto, sans-serif;
+         max-width: 760px; margin: 48px auto 96px; padding: 0 20px; color: #1a1a1a;
+         background: #fff; line-height: 1.65; }
+  h1 { font-size: 1.9rem; letter-spacing: -0.02em; margin-bottom: .3rem; }
+  .sub { color: #555; margin-top: 0; font-size: 1.02rem; }
+  h2 { font-size: 1.2rem; margin-top: 2.6rem; border-top: 1px solid #eee; padding-top: 1.4rem; }
+  code, pre { font-family: ui-monospace, SF Mono, Menlo, Consolas, monospace; }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+  pre { background: #f6f8fa; padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+        font-size: .83rem; line-height: 1.55; margin: .6rem 0; }
+  .core { background:#f5f3ff; border:1px solid #ddd6fe; border-radius:10px; padding:16px 18px; margin:1rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; margin: .6rem 0; }
+  td, th { border: 1px solid #e5e7eb; padding: 6px 10px; text-align: left; vertical-align:top; }
+  th { background: #f9fafb; }
+  .ok { color:#166534; font-weight:600; } .mid { color:#92400e; font-weight:600; } .no { color:#991b1b; font-weight:600; }
+  a { color:#1d4ed8; text-decoration:none; } a:hover { text-decoration: underline; }
+  .muted { color:#6b7280; font-size:.92rem; }
+  .ring { display:flex; flex-wrap:wrap; gap:8px; margin-top:.8rem; }
+  .ring a { border:1px solid #e5e7eb; border-radius:100px; padding:4px 12px; font-size:.85rem; color:#374151; }
+  .ring a:hover { border-color:#111; color:#111; text-decoration:none; }
+</style>
+</head>
+<body>
+
+<h1>How to Prevent AI Agents From Overspending</h1>
+<p class="sub">Not a checklist — a failure-mode map. Each way an agent overspends, why naive limits don't catch it,
+and the control that does.</p>
+
+<h2>The question</h2>
+<p>"My agent spent too much" is the symptom. The causes are a small set of repeatable failure modes — and most of
+them slip past a single dollar cap. Preventing overspending means understanding each mode and putting the right
+control at the right boundary.</p>
+
+<h2>The failure modes</h2>
+<table>
+  <tr><th>Failure mode</th><th>Why naive limits fail</th><th>Required control</th></tr>
+  <tr><td><strong>1. Retry storms</strong><br>a failing request retried until it succeeds or the budget dies</td>
+      <td>Every retry is individually under the cap; the <em>sequence</em> isn't.</td>
+      <td>Cumulative budget window (per agent, per day), checked atomically outside the agent loop. A retry that
+      would exceed the window is denied even if the cap allows it.</td></tr>
+  <tr><td><strong>2. Parallel execution</strong><br>many agents/actions spending at once</td>
+      <td>Each request reads "budget remaining" and all of them pass.</td>
+      <td>Reserve-and-commit: the decision updates the budget in the same atomic step as the check. Concurrency
+      can't race a counter that is decremented at decision time.</td></tr>
+  <tr><td><strong>3. Transaction splitting</strong><br>one large payment divided into cap-sized pieces</td>
+      <td>A per-transaction cap counts each piece, not the total intent.</td>
+      <td>Budget windows measure cumulative totals; splitting just spends the window faster and gets caught at the
+      boundary like any other spending.</td></tr>
+  <tr><td><strong>4. Wrong recipient</strong><br>amount is fine, destination is not (typo, tampering, new address)</td>
+      <td>Limits never ask <em>who</em> gets paid.</td>
+      <td>Merchant/recipient policy: allow and block lists, deny-by-default for unknown destinations, and a human
+      line for new recipients.</td></tr>
+  <tr><td><strong>5. Prompt injection / malicious instructions</strong><br>the model "believes" it should pay</td>
+      <td>The model is the attacked party; telling it to be careful is asking the victim to enforce policy.</td>
+      <td>Deterministic policy code the agent cannot argue with or override, with new-recipient and over-line
+      payments routed to a human. The decision never comes from the model.</td></tr>
+  <tr><td><strong>6. Approval replay</strong><br>one human yes executed twice (retry, crash recovery, second agent)</td>
+      <td>Approval stored as a message or a flag can be used any number of times.</td>
+      <td>Signed single-use grant: approval binds the exact request, the executor consumes it once, and the same
+      grant again is refused.</td></tr>
+</table>
+
+<h2>The synthesis</h2>
+<div class="core">
+Preventing overspending is <b>not</b> setting a single dollar cap. It is:
+<b>budget</b> (cumulative, atomic)
++ <b>recipient policy</b>
++ <b>approval thresholds</b> (bounded, re-checked)
++ <b>authorization grants</b> (signed, single-use)
++ <b>replay protection</b>
++ <b>execution-boundary enforcement</b> (no grant → no execution).
+</div>
+<p>Each failure mode above is stopped by at least one of these layers — and most need the last one, because a
+control the execution path can ignore is an opinion, not a gate.</p>
+
+<h2>One architecture for all six</h2>
+<pre>agent proposes payment (amount, recipient)
+        │
+        ▼
+authorize() ── atomic decision outside the agent loop
+        │      budget window · per-tx cap · recipient policy · approval line · agent identity
+        ├── DENY      → stops modes 1-4, 6
+        ├── APPROVAL  → human, re-checked against live policy → stops 5-6
+        └── ALLOW     → signed single-use grant
+        │
+        ▼
+executor.verify(grant)  ← consumes once; replay refused (mode 6)
+        │
+        ▼
+rail executes</pre>
+
+<h2>Minimal policy + code</h2>
+<pre># policy.yaml
+version: "2.1.0"
+policy:
+  budget:      { daily: 100 }              # stops retry storms & splitting
+  transaction: { max: 50 }
+  merchants:
+    allowed: [openai.com, mcdonalds.com]
+    blocked: [scam-vip.com]                # stops wrong recipient
+  approval:    { over: 30 }                # stops injection on big spends
+agents:
+  research-agent:
+    budget: { daily: 50 }
+    rate_limit: { window_s: 3600, max_calls: 10 }</pre>
+<pre>from spendshield import SpendShield
+shield = SpendShield(dry_run=False)
+shield.load_policy("policy.yaml")
+res = shield.authorize(agent="research-agent", amount=45, to="scam-vip.com")
+# → DENY: blocked merchant — no grant, nothing executes</pre>
+
+<h2>Where SpendShield fits</h2>
+<p><a href="https://github.com/felixpg13-glitch/spendshield">SpendShield</a> is an open-source implementation of
+this failure-mode map: budgets and caps, merchant policy, bounded approval, signed single-use grants, replay
+protection and execution-boundary enforcement — Python + MCP, MIT. See the full
+<a href="../failure-map.html">Agent Payment Failure Map</a> or test the rules in the
+<a href="../playground.html">playground</a>.</p>
+<ul>
+  <li>Library: <code>pip install spendshield</code></li>
+  <li>MCP: <code>uvx --from spendshield spendshield-mcp --policy policy.yaml</code></li>
+</ul>
+
+<h2>Related pages</h2>
+<div class="ring">
+  <a href="../ai-agent-payment-authorization/">AI Agent Payment Authorization</a>
+  <a href="../ai-agent-spending-limits/">AI Agent Spending Limits</a>
+  <a href="../x402-spending-limits/">x402 Spending Limits</a>
+  <a href="../agent-payment-approval-workflow/">Agent Payment Approval Workflow</a>
+</div>
+
+<p class="muted" style="margin-top:3rem">
+  <a href="../">← Home</a> · <a href="https://github.com/felixpg13-glitch/spendshield">GitHub</a> · MIT licensed
+</p>
+
+</body>
+</html>

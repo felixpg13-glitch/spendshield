@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Payment Approval Workflow — bounded authority, not open-ended permission</title>
+<meta name="description" content="How human approval for AI agent payments should work: approve the specific request, issue a signed one-time grant, consume it exactly once. Replay refused.">
+<link rel="canonical" href="https://felixpg13-glitch.github.io/spendshield/agent-payment-approval-workflow/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "Agent Payment Approval Workflow",
+  "description": "Human approval should create bounded authority, not an open-ended permission: approve the specific request, issue a signed one-time grant, consume it exactly once.",
+  "url": "https://felixpg13-glitch.github.io/spendshield/agent-payment-approval-workflow/"
+}
+</script>
+<style>
+  body { font-family: -apple-system, "SF Pro Text", Segoe UI, Roboto, sans-serif;
+         max-width: 760px; margin: 48px auto 96px; padding: 0 20px; color: #1a1a1a;
+         background: #fff; line-height: 1.65; }
+  h1 { font-size: 1.9rem; letter-spacing: -0.02em; margin-bottom: .3rem; }
+  .sub { color: #555; margin-top: 0; font-size: 1.02rem; }
+  h2 { font-size: 1.2rem; margin-top: 2.6rem; border-top: 1px solid #eee; padding-top: 1.4rem; }
+  code, pre { font-family: ui-monospace, SF Mono, Menlo, Consolas, monospace; }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+  pre { background: #f6f8fa; padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+        font-size: .83rem; line-height: 1.55; margin: .6rem 0; }
+  .core { background:#f5f3ff; border:1px solid #ddd6fe; border-radius:10px; padding:16px 18px; margin:1rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; margin: .6rem 0; }
+  td, th { border: 1px solid #e5e7eb; padding: 6px 10px; text-align: left; }
+  th { background: #f9fafb; }
+  .ok { color:#166534; font-weight:600; } .mid { color:#92400e; font-weight:600; } .no { color:#991b1b; font-weight:600; }
+  a { color:#1d4ed8; text-decoration:none; } a:hover { text-decoration: underline; }
+  .muted { color:#6b7280; font-size:.92rem; }
+  .ring { display:flex; flex-wrap:wrap; gap:8px; margin-top:.8rem; }
+  .ring a { border:1px solid #e5e7eb; border-radius:100px; padding:4px 12px; font-size:.85rem; color:#374151; }
+  .ring a:hover { border-color:#111; color:#111; text-decoration:none; }
+</style>
+</head>
+<body>
+
+<h1>Agent Payment Approval Workflow</h1>
+<p class="sub">When an agent has no autonomous authority for a payment, how does a human "yes" become a safe,
+once-only execution?</p>
+
+<h2>The question</h2>
+<p>Most spending policies include a human line: amounts above $X, new recipients, or flagged actions need a person's
+approval. But what does approval <em>mean</em> in an agent system? If "approved" just means the model was told
+"okay, go ahead," then the human has only added one more layer of conversation — not a control.</p>
+<p>The useful property of approval is that it converts a human decision into <strong>bounded, executable
+authority</strong>: authority over this specific request, for this specific amount and recipient, usable exactly once.</p>
+
+<div class="core">
+<b>Human approval should create bounded authority, not an open-ended permission.</b>
+</div>
+
+<h2>Why naive approval is insufficient</h2>
+<table>
+  <tr><th>Naive pattern</th><th>What actually happens</th></tr>
+  <tr><td>"Ask the model to wait for a yes"</td><td>The model is the thing being attacked. A yes in chat is a fact in context, not a control.</td></tr>
+  <tr><td>"Enable the payment tool after approval"</td><td>That's permanent capability — the agent now spends freely until someone remembers to disable it. Approval became a switch, not a decision.</td></tr>
+  <tr><td>"Log the approval message"</td><td>Logs describe. They don't stop a second execution of the same intent.</td></tr>
+</table>
+<p>Approval that is not bound to the specific intent, and not consumed by execution, drifts back into the category
+of things an agent can argue with or replay.</p>
+
+<h2>The workflow</h2>
+<pre>1. payment request (agent, amount, recipient, purpose)
+        │
+2. policy evaluation
+        │
+3. APPROVAL REQUIRED        ← over the autonomous line / new recipient / flagged
+        │
+4. human approves           ← sees the actual request: amount, recipient, agent
+        │
+5. signed one-time grant issued   (bound to amount + recipient + agent + policy version)
+        │
+6. executor verifies grant
+        │
+7. grant consumed
+        │
+8. execute once
+        │
+   replay of the same grant → refused (step 6 fails)</pre>
+<p>Each property matters:</p>
+<ul>
+  <li><strong>Bound to the request</strong> — the grant names the amount, recipient, agent and policy version. It
+      can't be spent on something else.</li>
+  <li><strong>One-time</strong> — the executor records consumption. The same grant again → refused.</li>
+  <li><strong>Re-evaluated at approval time</strong> — the human's yes is checked against the <em>current</em>
+      policy; if the budget moved or the merchant got blocked while the request was pending, approval fails closed.</li>
+  <li><strong>No standing capability</strong> — nothing was enabled. Only this grant exists, and it is now spent.</li>
+</ul>
+
+<h2>Failure modes this prevents</h2>
+<ul>
+  <li><strong>Approval replay</strong> — one human yes executed twice (retry, second agent, crash recovery).</li>
+  <li><strong>Scope creep</strong> — "approved $40 to OpenAI" reused to pay $400 to an unknown address. The grant binds the intent.</li>
+  <li><strong>Stale approval</strong> — policy tightened between the human's yes and execution; the grant re-check fails.</li>
+  <li><strong>Permanent-capability drift</strong> — approval never becomes an always-on payment tool.</li>
+</ul>
+
+<h2>Minimal code</h2>
+<pre>res = shield.authorize(agent="trading-agent", amount=250, to="exchange.example.com")
+if res.decision == "APPROVAL":
+    # human reviews the actual request…
+    res = shield.approve(res.approval_id, by="ops-reviewer")
+    # re-evaluated against current policy; only ALLOW proceeds
+
+if res.decision == "ALLOW":
+    grant = issuer.issue(agent="trading-agent", amount=250,
+                         currency="USD", merchant="exchange.example.com",
+                         policy_version=res.policy_version)
+    ok, reason = executor.verify(grant, agent="trading-agent", amount=250,
+                                 currency="USD", merchant="exchange.example.com")
+    # ok → execute; second verify of the same grant → (False, "REUSED")</pre>
+
+<h2>ALLOW / APPROVAL / DENY in practice</h2>
+<table>
+  <tr><th>Request</th><th>Outcome</th></tr>
+  <tr><td>$25 → trusted merchant (under autonomous line)</td><td><span class="ok">ALLOW — no human needed</span></td></tr>
+  <tr><td>$250 → trusted merchant (over line)</td><td><span class="mid">APPROVAL → human grants → executes once</span></td></tr>
+  <tr><td>same grant replayed</td><td><span class="no">REFUSED — consumed already</span></td></tr>
+  <tr><td>human approves, then merchant gets blocked before execution</td><td><span class="no">DENY — approval re-checked against current policy</span></td></tr>
+</table>
+
+<h2>Where SpendShield fits</h2>
+<p><a href="https://github.com/felixpg13-glitch/spendshield">SpendShield</a> implements this workflow: approval
+requests carry an <code>approval_id</code>, <code>approve()</code> re-evaluates against the live policy, and ALLOW
+produces the signed one-time grant that the executor consumes. Open source, MIT, Python + MCP.
+Try it interactively in the <a href="../playground.html">policy playground</a> — raise the approval line and watch
+a payment switch from ALLOW to APPROVAL.</p>
+<ul>
+  <li>Library: <code>pip install spendshield</code></li>
+  <li>MCP: <code>uvx --from spendshield spendshield-mcp --policy policy.yaml</code> — <code>authorize_payment</code> → <code>spend_approve</code></li>
+</ul>
+
+<h2>Related pages</h2>
+<div class="ring">
+  <a href="../ai-agent-payment-authorization/">AI Agent Payment Authorization</a>
+  <a href="../ai-agent-spending-limits/">AI Agent Spending Limits</a>
+  <a href="../x402-spending-limits/">x402 Spending Limits</a>
+  <a href="../prevent-ai-agents-from-overspending/">Prevent AI Agents From Overspending</a>
+</div>
+
+<p class="muted" style="margin-top:3rem">
+  <a href="../">← Home</a> · <a href="https://github.com/felixpg13-glitch/spendshield">GitHub</a> · MIT licensed
+</p>
+
+</body>
+</html>
