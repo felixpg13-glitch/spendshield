@@ -26,6 +26,22 @@ import os
 import sys
 from decimal import Decimal
 
+# ── coinbase-agentkit 0.7.x imports solana.rpc.api, which solana>=0.37 removed ──
+# This demo never instantiates the Solana wallet provider, so stub the module if
+# the installed solana is too new. (Remove once upstream fixes the import.)
+try:
+    import solana.rpc.api  # noqa: F401
+except ImportError:
+    import sys as _sys
+    import types as _types
+    _sol = _types.ModuleType("solana"); _sol.__path__ = []
+    _rpc = _types.ModuleType("solana.rpc"); _rpc.__path__ = []
+    _api = _types.ModuleType("solana.rpc.api")
+    _api.Client = type("Client", (), {})
+    _sys.modules["solana"] = _sol
+    _sys.modules["solana.rpc"] = _rpc
+    _sys.modules["solana.rpc.api"] = _api
+
 # ── quiet AgentKit telemetry (demo env has no Coinbase keys) ──────────────
 import coinbase_agentkit.wallet_providers.wallet_provider as _wp
 import coinbase_agentkit.action_providers.action_provider as _ap
@@ -38,10 +54,14 @@ from coinbase_agentkit.action_providers.wallet.wallet_action_provider import Wal
 from coinbase_agentkit.network import Network  # noqa: E402
 from coinbase_agentkit.wallet_providers.wallet_provider import WalletProvider  # noqa: E402
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
+if REPO_ROOT not in sys.path:
+    sys.path.insert(0, REPO_ROOT)  # use the repo's spendshield engine (matches this checkout)
+
 from spendshield import SpendShield  # noqa: E402
 from spendshield.enforce import AuthorizationIssuer, Executor  # noqa: E402
 
-HERE = os.path.dirname(os.path.abspath(__file__))
 AGENT = "demo-agent"
 SECRET = "agentkit-demo-secret-change-me"
 

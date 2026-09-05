@@ -1,8 +1,26 @@
-# SpendShield × AgentKit — transfer authorization example
+# SpendShield × AgentKit — a working integration example
 
-**The integration shape:** SpendShield sits between the agent's decision and AgentKit's
-payment execution. AgentKit has no policy hook in its action loop, so the gate wraps the
-action boundary — the same place a LangChain / OpenAI-agents chatbot calls its tools.
+**Policy authorization for AgentKit payment actions — evaluate spending policy
+before invoking a wallet action.**
+
+```text
+ALLOW   → AgentKit action invoked (exactly once)
+APPROVAL → human approves → invoked once
+DENY    → action never invoked
+REPLAY  → grant refused → action never invoked
+```
+
+> ⚠️ This is a **working integration example / prototype** — not an official
+> Coinbase integration. **No changes to AgentKit are required**; it uses only
+> the public AgentKit SDK surface (`WalletActionProvider`, the `WalletProvider`
+> interface, and real `Action.invoke` calls).
+
+## Why this example exists
+
+AgentKit payment actions can execute transfers and x402 payments, but applications
+may want an additional policy layer — budget, per-transaction caps, merchant
+allow/block lists, human approval — *before* invoking those actions. SpendShield is
+that layer: it decides, AgentKit executes.
 
 ```text
 Agent decides to transfer
@@ -21,29 +39,36 @@ Executor.verify(grant)   ← consumed once; replay of the same grant → REFUSED
 AgentKit Action.invoke() → WalletProvider.native_transfer()   ← the only execution path
 ```
 
-## What it proves
+## What it proves (with counters, not vibes)
 
-Not "if allowed then transfer" — the full authorization semantics:
+The demo counts real `WalletProvider.native_transfer` calls — the true execution
+point under `Action.invoke` — and asserts on the counts:
 
-| Scenario | SpendShield | AgentKit execution |
+| Scenario | SpendShield | native_transfer executions |
 |---|---|---|
-| $5 to trusted merchant | ALLOW | executed exactly once |
-| $50 (over $30 autonomous limit) | APPROVAL → human grant | executed exactly once |
-| same grant replayed | REUSED → REFUSED | 0 additional executions |
-| $500 to blocked address | DENY (merchant blocked) | **never invoked** |
+| $5 to trusted merchant | ALLOW | 1 |
+| $50 (over $30 autonomous limit) | APPROVAL → human grant | 1 |
+| same grant replayed | REUSED → REFUSED | 0 additional |
+| $500 to blocked address | DENY (merchant blocked) | **0** |
 
-The script counts real `WalletProvider.native_transfer` calls (the true execution point
-under `Action.invoke`) and asserts on the counts — so a DENY that still executes would FAIL.
+A DENY (or replay) that still executed would FAIL the assertions.
 
-## Run it
+### Why a deterministic wallet provider?
+
+The demo uses a deterministic `WalletProvider` implementation (no chain, no keys)
+**to make the execution boundary observable and reproducible**. The integration
+path still calls AgentKit's real `Action.invoke` and `WalletProvider.native_transfer`
+— the same code path a real `EthAccountWalletProvider` / CDP wallet would run.
+Swap in your real wallet provider and the gate stays exactly the same.
+
+## Run it (one command)
 
 ```bash
-pip install coinbase-agentkit spendshield
-python examples/integration/agentkit/run_demo.py
+pip install -r requirements.txt
+python run_demo.py
 ```
 
-No chain, no real money — the wallet provider is a deterministic stand-in and the policy
-amounts are symbolic units.
+No chain, no real money, no configuration. Policy amounts are symbolic units.
 
 ## The gate (the whole integration boundary, ~20 lines)
 
@@ -59,13 +84,14 @@ if ok:
 ```
 
 Everything before step 5 — budget, per-transaction cap, merchant block list, human
-approval line, replay protection — comes from `policy.yaml`, not from application code.
+approval line, replay protection — comes from `policy.yaml`, not application code.
 
 ## Files
 
 - `run_demo.py` — the demo + assertions (exit 0 = all pass)
-- `policy.yaml` — the policy: daily $100 budget, $50 per-tx cap, trusted/blocked
+- `policy.yaml` — policy: daily $100 budget, $50 per-tx cap, trusted/blocked
   recipient addresses, $30 approval threshold for `demo-agent`
+- `requirements.txt` — pinned dependency versions
 
 ## Expected output
 

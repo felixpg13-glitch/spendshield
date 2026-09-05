@@ -1,0 +1,6 @@
+# Pinned dependency versions (verified 2026-09-05)
+# spendshield comes from the repo checkout (../.. sys.path) so the demo always
+# matches this engine version — nothing to install from PyPI for it.
+# solana is intentionally NOT pinned: the demo stubs solana.rpc.api at import
+# (upstream agentkit 0.7.x still imports it; solana>=0.37 removed it).
+coinbase-agentkit==0.7.4
