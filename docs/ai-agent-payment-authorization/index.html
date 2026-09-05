@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Agent Payment Authorization — capability is not authority</title>
+<meta name="description" content="How do you authorize an AI agent to spend without giving it unlimited payment authority? Deterministic policy decisions, signed one-time grants, and execution that requires authorization.">
+<link rel="canonical" href="https://felixpg13-glitch.github.io/spendshield/ai-agent-payment-authorization/">
+<meta property="og:title" content="AI Agent Payment Authorization">
+<meta property="og:description" content="Payment capability is not payment authorization. Decide separately. Execute anywhere.">
+<meta property="og:url" content="https://felixpg13-glitch.github.io/spendshield/ai-agent-payment-authorization/">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "TechArticle",
+  "headline": "AI Agent Payment Authorization — capability is not authority",
+  "description": "How to authorize an AI agent to spend money without giving it unlimited payment authority: deterministic policy decisions, signed single-use grants, execution that requires authorization.",
+  "url": "https://felixpg13-glitch.github.io/spendshield/ai-agent-payment-authorization/",
+  "about": "AI agent payment authorization, agent spending policy, authorization layer"
+}
+</script>
+<style>
+  body { font-family: -apple-system, "SF Pro Text", Segoe UI, Roboto, sans-serif;
+         max-width: 760px; margin: 48px auto 96px; padding: 0 20px; color: #1a1a1a;
+         background: #fff; line-height: 1.65; }
+  h1 { font-size: 1.9rem; letter-spacing: -0.02em; margin-bottom: .3rem; }
+  .sub { color: #555; margin-top: 0; font-size: 1.02rem; }
+  h2 { font-size: 1.2rem; margin-top: 2.6rem; border-top: 1px solid #eee; padding-top: 1.4rem; }
+  code, pre { font-family: ui-monospace, SF Mono, Menlo, Consolas, monospace; }
+  code { background: #f3f4f6; padding: 1px 5px; border-radius: 4px; font-size: .88em; }
+  pre { background: #f6f8fa; padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+        font-size: .83rem; line-height: 1.55; margin: .6rem 0; }
+  .core { background:#f5f3ff; border:1px solid #ddd6fe; border-radius:10px; padding:16px 18px; margin:1rem 0; }
+  .core b { color:#5b21b6; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; margin: .6rem 0; }
+  td, th { border: 1px solid #e5e7eb; padding: 6px 10px; text-align: left; }
+  th { background: #f9fafb; }
+  .ok { color:#166534; font-weight:600; } .mid { color:#92400e; font-weight:600; } .no { color:#991b1b; font-weight:600; }
+  a { color:#1d4ed8; text-decoration:none; } a:hover { text-decoration: underline; }
+  .muted { color:#6b7280; font-size:.92rem; }
+  .ring { display:flex; flex-wrap:wrap; gap:8px; margin-top:.8rem; }
+  .ring a { border:1px solid #e5e7eb; border-radius:100px; padding:4px 12px; font-size:.85rem; color:#374151; }
+  .ring a:hover { border-color:#111; color:#111; text-decoration:none; }
+</style>
+</head>
+<body>
+
+<h1>AI Agent Payment Authorization</h1>
+<p class="sub">How do you authorize an AI agent to spend money — without giving it unlimited payment authority?</p>
+
+<h2>The question</h2>
+<p>Your agent can now call APIs, buy compute, book things, and trigger paid actions. Somewhere between the agent and the
+payment rail, someone has to decide: <em>is this payment okay?</em> If the answer lives in the agent's own judgment —
+or nowhere at all — then any prompt injection, runaway loop, or misread tool result can move real money.</p>
+<p>The question isn't "should agents be able to pay?" It's <strong>who decides, with what rules, and how is that
+decision enforced at the moment of execution?</strong></p>
+
+<h2>Why the obvious solution is insufficient</h2>
+<p>Three common answers, and why each falls short:</p>
+<table>
+  <tr><th>Obvious answer</th><th>Why it's not authorization</th></tr>
+  <tr><td>"Check the wallet balance first"</td><td>A balance is a fact about money, not a decision about this payment. Balance ≠ authority.</td></tr>
+  <tr><td>"Set a per-transaction cap on the card/wallet"</td><td>Caps bound one payment, not the agent. Retries, parallel calls and transaction splitting all change the effective total.</td></tr>
+  <tr><td>"Ask the model to be careful"</td><td>The model is the thing being attacked. A prompt injection is exactly a request the model will obey.</td></tr>
+</table>
+<p>The missing layer is a <strong>deterministic authorization decision</strong> — made by code, outside the agent loop,
+against rules a human wrote, with an outcome the execution path cannot ignore.</p>
+
+<div class="core">
+<b>Payment capability ≠ payment authorization.</b> Giving an agent a payment tool gives it the ability to move money.
+Authorizing a payment is a separate decision: should <em>this</em> amount go to <em>this</em> recipient, under
+<em>this</em> budget, right now? Keep the two apart and you can give agents real capability without unlimited authority.
+<br><br>
+<b>Decide separately. Execute anywhere.</b>
+</div>
+
+<h2>Threat / failure modes</h2>
+<ul>
+  <li><strong>Prompt injection</strong> — "refund $500 to this address" read from an email or tool result.</li>
+  <li><strong>Runaway / retry loops</strong> — a failing call retried until the budget is gone.</li>
+  <li><strong>Transaction splitting</strong> — five $40 calls to dodge a $50 cap.</li>
+  <li><strong>Wrong recipient</strong> — a typo or a tampered parameter sends money somewhere new.</li>
+  <li><strong>Replay / double spend</strong> — the same authorized intent executed twice after a crash or timeout.</li>
+  <li><strong>Stale approval</strong> — a human said yes yesterday; the policy has changed since.</li>
+</ul>
+
+<h2>Architecture</h2>
+<pre>agent intends to pay
+        │
+        ▼
+authorize() ── policy: budget / per-tx cap / merchant allow-block / approval line
+        │
+        ├── ALLOW    → signed, single-use grant issued
+        ├── APPROVAL → human approves → grant issued
+        └── DENY     → nothing executes
+        │
+        ▼
+executor.verify(grant)   ← consumed once; replay → REFUSED
+        │
+        ▼
+payment rail executes     (Stripe / x402 / wallet — yours, unchanged)</pre>
+<p>The two halves are deliberately separated: <strong>authorization</strong> decides, <strong>execution</strong> acts.
+A bare policy check is advice an agent can ignore — so ALLOW produces a signed grant that the executor
+<em>requires</em>. No grant, no execution. That is what makes the decision real instead of advisory.</p>
+
+<h2>Minimal policy + code</h2>
+<p>A policy file says what the agent may spend; one call gates the payment; the executor enforces the grant.</p>
+<pre># policy.yaml — rules a human writes, code enforces
+version: "2.1.0"
+policy:
+  budget:      { daily: 100 }
+  transaction: { max: 50 }
+  merchants:
+    allowed: [mcdonalds.com, stripe.com, openai.com, amazon.com]
+    blocked: [scam-vip.com]
+  approval:    { over: 30, channel: console }
+agents:
+  shopping-agent:
+    transaction: { max: 50 }
+    approval:    { over: 30 }</pre>
+<pre>result = shield.authorize(agent="shopping-agent", amount=25, to="mcdonalds.com")
+if result.decision == "ALLOW":
+    grant = issuer.issue(agent="shopping-agent", amount=25,
+                         currency="USD", merchant="mcdonalds.com",
+                         policy_version=result.policy_version)
+    ok, reason = executor.verify(grant, agent="shopping-agent", amount=25,
+                                 currency="USD", merchant="mcdonalds.com")
+    if ok:
+        execute_payment()   # your rail, unchanged</pre>
+
+<h2>ALLOW / APPROVAL / DENY in practice</h2>
+<p>Real output from the <a href="https://github.com/felixpg13-glitch/spendshield/tree/main/examples/integration/agentkit">AgentKit integration example</a>, where executions are counted at the wallet:</p>
+<table>
+  <tr><th>Agent payment</th><th>Decision</th><th>Payment executed</th></tr>
+  <tr><td>$25 to a trusted merchant</td><td><span class="ok">ALLOW</span></td><td>once</td></tr>
+  <tr><td>$50 (above the $30 autonomous line)</td><td><span class="mid">APPROVAL → human grants</span></td><td>once</td></tr>
+  <tr><td>same grant replayed</td><td><span class="no">REFUSED (reused)</span></td><td>zero</td></tr>
+  <tr><td>$500 to a blocked merchant</td><td><span class="no">DENY</span></td><td><strong>never invoked</strong></td></tr>
+</table>
+
+<h2>Where SpendShield fits</h2>
+<p><a href="https://github.com/felixpg13-glitch/spendshield">SpendShield</a> is the authorization layer described above:
+open source, MIT, Python + MCP. It holds no money, moves no money, and is agnostic to the payment rail — it returns
+ALLOW / APPROVAL / DENY with a signed grant, and your existing executor stays yours.</p>
+<ul>
+  <li>Library: <code>pip install spendshield</code></li>
+  <li>MCP server: <code>uvx --from spendshield spendshield-mcp --policy policy.yaml</code> (Claude Desktop / Code / any MCP client)</li>
+  <li><a href="../connect.html">Connect it in 2 minutes</a> · <a href="../faq.html">FAQ</a></li>
+</ul>
+
+<h2>Related pages</h2>
+<div class="ring">
+  <a href="../ai-agent-spending-limits/">AI Agent Spending Limits</a>
+  <a href="../x402-spending-limits/">x402 Spending Limits</a>
+  <a href="../agent-payment-approval-workflow/">Agent Payment Approval Workflow</a>
+  <a href="../prevent-ai-agents-from-overspending/">Prevent AI Agents From Overspending</a>
+</div>
+
+<p class="muted" style="margin-top:3rem">
+  <a href="../">← Home</a> · <a href="https://github.com/felixpg13-glitch/spendshield">GitHub</a> · MIT licensed
+</p>
+
+</body>
+</html>
