@@ -213,6 +213,10 @@ spendshield-mcp --policy policy.yaml     # stdio MCP server, 16 tools
 
 Claude Code / any MCP host gets: `spend_authorize`, `spend_approve`, `policy_sim`, `policy_apply`, `policy_create` → `policy_review` → `policy_lifecycle_apply`, `policy_rollback`… An agent can **ask "will this be denied?" before spending**, and humans approve the big ones.
 
+## 🔌 Integration patterns — plug SpendShield into your stack
+
+Building an agent payment tool, an x402 flow, or an MCP payment server? See **[examples/integration/](examples/integration/README.md)** — the three adapter patterns (x402 / agent payment tool / MCP), all runnable from this repo, no real money:
+
 ## 🧪 How it's tested (real money → real discipline)
 
 - **251 tests**, 14+ security suites: budget bypass, race conditions, replay, double-spend, parameter tampering, credential leaks…
