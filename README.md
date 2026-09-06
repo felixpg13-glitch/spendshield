@@ -57,6 +57,8 @@ A real Claude session asked to spend on McDonald's. It got its $25 order… then
 
 <small>▶ <a href="https://felixpg13-glitch.github.io/spendshield/demo.html">Play it inline on the demo page</a> · <a href="https://felixpg13-glitch.github.io/spendshield/demo/spendshield-demo-60s.mp4">direct mp4</a></small>
 
+See a complete agent authorization flow → [McDonald's breakfast agent case study](docs/CASE_mcd_dogfood.md) — the same gate, end to end: policy, decisions, a bypass attempt, and the audit chain.
+
 ## 🔒 One gate. No second path.
 
 ```text
