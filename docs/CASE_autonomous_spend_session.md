@@ -11,7 +11,7 @@ One agent. One YAML policy. One gate. Six real decisions — every line below is
 | 5 | operator raises daily budget 60 → 200 | 🔄 **v2.1.0 → v2.1.1** | lifecycle: create → validate → simulate → scan → review → apply; the same $10 request now ALLOWs under the new policy |
 | 6 | bypass: call the rail directly, no gate | 🔒 **REFUSED ×2** | no grant → `MALFORMED_TOKEN`; forged $500 grant → `INVALID_SIGNATURE`. Only a real grant verifies → `AUTHORIZED`, then the rail executes |
 
-The whole session lands in a **tamper-evident hash chain** — 12 events (5 authorizations + 1 approval + 6 policy-lifecycle actions), chain verified `INTACT`.
+The whole session lands in a **hash-chained audit trail** — 12 events (5 authorizations + 1 approval + 6 policy-lifecycle actions), chain verified `INTACT` (tamper detection via chain verification).
 
 ## Reproduce it yourself
 

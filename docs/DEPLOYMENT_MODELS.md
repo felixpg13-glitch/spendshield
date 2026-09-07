@@ -23,6 +23,7 @@ Agent → SpendShield MCP → ALLOW / APPROVAL / DENY
 ```
 - Agent 的工具列表里出现 `check_transaction(amount, merchant)`,花钱前**自己问**。
 - **信任边界**:这属于 **Agent 主动调用 Guardrail**——依赖 Agent 听话。不解决「Agent 不听话、绕过检查直接调支付」的问题。
+- **工具级分离是部署要求(重要)**: MCP server 自身不 enforce 工具 ACL。Host 必须只把**决策工具**(`spend_authorize` / `spend_status` / `spend_audit`)暴露给不可信 agent;`spend_approve` / `spend_reject` / `spend_reset` / `policy_*` / `secret_get` 等**管理工具只留给受信 Host/人工侧**。若 host 把管理工具也授给 agent,当前实现不会阻止 agent 调用(2026-09-07 scadastrangelove review Q1 确认)。
 - **适用**:让 AI 原生工作流「自觉合规」,教育型/演示型场景。
 
 ### 3. Gateway(强制拦截,生产级)

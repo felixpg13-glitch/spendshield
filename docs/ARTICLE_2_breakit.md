@@ -43,7 +43,7 @@ We gave an agent a real spending permission with one YAML policy:
 - daily budget, single-transaction cap, merchant allowlist/blocklist,
 - human approval above a threshold,
 - per-day "benefit" limits (one breakfast order per day),
-- a tamper-evident audit chain over *everything*, including policy changes.
+- a hash-chained audit trail over *everything*, including policy changes (chain verification detects tampering).
 
 Then we ran it through a realistic autonomous session and recorded every decision. The policy was the same file the whole time; we only changed what the agent asked for and how it asked.
 
@@ -80,7 +80,7 @@ Every attack we found became a numbered entry in a corpus with its minimal repro
 Agent → Authorization → Policy decision → Enforcement → Payment execution → Audit
 ```
 
-**Authorization that doesn't reach execution is only advice.** So SpendShield issues a *signed, single-use grant*, and the execution layer is built to consume it:
+**Authorization that doesn't reach execution is only advice.** In the gateway deployment model (experimental prototype — see the [enforcement section in the README](https://github.com/felixpg13-glitch/spendshield)), SpendShield issues a *signed, single-use grant*, and the execution layer is built to consume it:
 
 ```text
 SpendShield:  policy → ALLOW → signed grant (agent · amount · merchant · policy version)
